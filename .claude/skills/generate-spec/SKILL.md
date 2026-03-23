@@ -1,7 +1,7 @@
 ---
 name: generate-spec
 description: Create governed specification, definition, or architecture documents following the spec-driven workflow. Use when you need a new spec, shared definition, reference document, or architecture doc.
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: Read, Grep, Glob, Edit, Write
 layer: 0
 ---

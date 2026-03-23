@@ -1,7 +1,7 @@
 ---
 name: sync-contracts
 description: Regenerate contracts.yaml from spec Requires/Provides tables. Use after editing spec dependencies. Shows a dry-run diff first for approval.
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: Bash(bash scripts/sync-contracts.sh *), Read
 layer: 2
 ---

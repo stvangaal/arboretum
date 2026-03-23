@@ -1,7 +1,7 @@
 ---
 name: consolidate
 description: Formalize your code into specs — scan branch changes, group by responsibility, generate governed specs
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 argument-hint: "[path/to/superpowers-spec.md]"
 layer: 0

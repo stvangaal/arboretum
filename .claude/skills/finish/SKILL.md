@@ -1,7 +1,7 @@
 ---
 name: finish
 description: Complete implementation work — verify, promote spec to implemented, and create a pull request. Use when implementation is done and you're ready to ship.
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: Bash, Read, Edit, Grep, Glob
 layer: 0
 ---

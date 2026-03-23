@@ -1,7 +1,7 @@
 ---
 name: promote-spec
 description: Advance a specification through the status state machine (draft → ready → in-progress → implemented). Runs validation gates at each transition.
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: Read, Edit, Grep, Glob, Bash(bash scripts/*)
 argument-hint: <spec-name>
 layer: 0

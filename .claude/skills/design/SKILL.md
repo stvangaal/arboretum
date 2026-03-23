@@ -1,7 +1,7 @@
 ---
 name: design
 description: Wrapper skill that orchestrates the design phase — runs external brainstorming to produce a design spec, then consolidates into a governed spec ready for implementation. Use at the start of planned work.
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 argument-hint: "[path/to/superpowers-spec.md]"
 layer: 0

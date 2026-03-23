@@ -1,7 +1,7 @@
 ---
 name: init-project
 description: Initialize a new project with spec-driven development infrastructure — creates directory structure, copies templates, sets up hooks. Use when starting a new project or adding spec governance to an existing one.
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: Bash(bash scripts/bootstrap-project.sh *), Read, Write
 argument-hint: [target-directory]
 layer: 0
