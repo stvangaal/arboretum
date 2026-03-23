@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# arboretum — CLI entry point for the arboretum framework
+#
+# Usage:
+#   arboretum bootstrap <target-directory> [project-name]
+#   arboretum update
+#
+# Dispatches to the appropriate script in scripts/.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(realpath "$SCRIPT_DIR/..")"
+
+usage() {
+  echo "Usage: arboretum <command> [args...]"
+  echo ""
+  echo "Commands:"
+  echo "  bootstrap <target-dir> [project-name]   Create a new spec-driven project"
+  echo "  update                                   Update arboretum files in current project"
+  echo ""
+  echo "Examples:"
+  echo "  arboretum bootstrap ~/Projects/rule-flow"
+  echo "  cd ~/Projects/rule-flow && arboretum update"
+  exit 1
+}
+
+if [ $# -lt 1 ]; then
+  usage
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+  bootstrap)
+    exec "$REPO_ROOT/scripts/bootstrap-project.sh" "$@"
+    ;;
+  update)
+    echo "Error: 'arboretum update' is not yet implemented."
+    echo "For now, re-run bootstrap — it is idempotent and will not overwrite existing files."
+    exit 1
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    echo "Error: unknown command '$COMMAND'"
+    echo ""
+    usage
+    ;;
+esac
