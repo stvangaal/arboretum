@@ -131,10 +131,16 @@ Skills are slash commands that automate governance tasks:
 
 ```bash
 # Clone arboretum (once)
-git clone <arboretum-repo-url> ~/arboretum
+git clone https://github.com/stvangaal/arboretum.git ~/arboretum-framework
 
 # Bootstrap a new project
-~/arboretum/bin/arboretum bootstrap ~/Projects/my-project
+#   ~/arboretum-framework/bin/arboretum bootstrap ~/<Projects>/<New_Repo>
+#
+#   <Projects>  — your projects directory (e.g. Projects, repos, src)
+#   <New_Repo>  — the project you want to create
+#
+# Example:
+~/arboretum-framework/bin/arboretum bootstrap ~/Projects/rule-flow
 ```
 
 This creates a project with arboretum-owned scaffolding (workflow, templates, skills) and project-owned files (CLAUDE.md, specs, code) that you control.
