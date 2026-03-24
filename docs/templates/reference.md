@@ -1,3 +1,7 @@
+---
+version: 1
+---
+
 # [Reference Document Title]
 
 <!-- Reference documents hold domain knowledge, governance artifacts,

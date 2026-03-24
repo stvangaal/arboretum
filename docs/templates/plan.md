@@ -1,3 +1,7 @@
+---
+version: 1
+---
+
 # [Spec Name] — Implementation Plan
 
 <!-- Plans are ephemeral documents. They are useful during implementation

@@ -1,3 +1,7 @@
+---
+version: 1
+---
+
 # [Project Name] — Architecture
 
 ## Architecture Owner

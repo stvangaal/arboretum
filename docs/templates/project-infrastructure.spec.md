@@ -1,3 +1,7 @@
+---
+version: 1
+---
+
 # Project Infrastructure
 
 ## Status

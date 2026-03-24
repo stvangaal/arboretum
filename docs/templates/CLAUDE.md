@@ -1,3 +1,7 @@
+---
+version: 1
+---
+
 # CLAUDE.md
 
 ## Project Overview

@@ -1,4 +1,5 @@
 ---
+version: 1
 name: {{spec-name}}
 status: draft
 owner: {{group-name or "architecture"}}

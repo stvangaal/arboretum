@@ -1,3 +1,4 @@
+# version: 1
 # contracts.yaml — version pins for contract test enforcement
 #
 # This file maps each spec to the shared definition versions it depends on.

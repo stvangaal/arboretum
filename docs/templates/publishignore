@@ -1,3 +1,4 @@
+# version: 1
 # .publishignore — files and directories excluded from your public repo
 #
 # This file controls what gets stripped when you run /publish.
