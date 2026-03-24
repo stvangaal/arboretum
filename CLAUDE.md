@@ -2,16 +2,16 @@
 
 ## Project Overview
 
-Arboretum is a spec-driven development framework for AI code agents. It provides a document-first workflow where every line of code traces back to a human-authored specification. The primary AI agent is Claude Code.
+Arboretum is an organizational framework for building software with AI code agents. It gives domain experts a repeatable way to create projects that are well-organized, maintainable, and understandable — even when the human didn't write most of the code.
 
-## Key Documents
+It is not a build system, test framework, or replacement for Claude Code. It is the layer that makes AI-assisted development predictable and traceable.
 
-| Document | Purpose |
-|---|---|
-| `SPEC-WORKFLOW.md` | Full workflow specification and governing rules |
-| `docs/templates/` | Starter templates for specs and other document types |
-| `.claude/skills/` | Slash skills (Claude Code commands) |
-| `examples/rule-flow-engine/` | Fully governed sample project |
+See `PRINCIPLES.md` for the seven principles that guide all design decisions.
+
+## Prerequisites
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (CLI)
+- [superpowers](https://github.com/anthropics/superpowers) skills package (for design, planning, TDD, and debugging)
 
 ## CLI Usage
 
@@ -23,19 +23,53 @@ bin/arboretum bootstrap ~/Projects/my-project
 ./arboretum update
 ```
 
-## Development Workflow Rules
+## Workflows
 
-- **Ownership headers:** Every source file must include `# owner: <spec-name>` as its first comment line (language-appropriate comment syntax, always lowercase). No exceptions — configuration files, test helpers, scripts, and infrastructure files are all owned by exactly one spec.
-- **4-level model:** Arboretum uses a 4-level architecture: System (`ARCHITECTURE.md`) → Spec Group (`docs/groups/`) → Spec (`docs/specs/`) → Code (source files). Every object declares its one owner via the `owner:` label at every level. All relationships are derivable by walking this ownership spine.
+Five workflows cover the full development lifecycle. See `workflows/README.md` for details.
 
-## Available Skills
+```
+new-project    /init-project → /architect → [spike → /consolidate]* → build
+feature        /start → survey → /design → plan → build → /finish → /cleanup → /reflect
+bug-fix        /start → investigate → classify → fix → /finish → /cleanup → /reflect
+explore        /start → spike → document → decide (→ feature or → another spike)
+publish        /publish (review → strip → sync)
+```
 
-| Skill | Purpose |
+## Skills
+
+**Workflow:** `/start`, `/design`, `/finish`, `/cleanup`, `/reflect`
+
+**Governance:** `/consolidate`, `/init-project`, `/architect`, `/pr`, `/promote-spec`, `/publish`
+
+**Diagnostics:** `/health-check`
+
+**Layer 2:** `/security-review`
+
+### External skills (superpowers)
+
+Arboretum wraps external skills at workflow transition points rather than building its own:
+
+| External skill | Workflow stage |
 |---|---|
-| `/generate-spec` | Create specs interactively |
-| `/health-check` | Check for drift and orphaned files |
-| `/pr` | Spec-aware pull request creation |
-| `/consolidate` | Generate specs from existing code |
-| `/check-register` | File ownership audit |
-| `/promote-spec` | Advance spec through status machine |
-| `/architect` | Design and maintain architecture structure |
+| `superpowers:brainstorming` | Design |
+| `superpowers:writing-plans` | Planning |
+| `superpowers:test-driven-development` | Build |
+| `superpowers:executing-plans` | Build |
+| `superpowers:subagent-driven-development` | Build (alternative) |
+| `superpowers:systematic-debugging` | Investigation |
+
+## Development Rules
+
+- **Spec-first gate:** Do not modify source files unless implementing a spec with status `in-progress`. If asked for a code change directly, identify the owning spec, offer to update the spec, and wait for approval.
+- **Ownership:** Every source file includes `# owner: <spec-name>` as its first comment line.
+- **Permitted without spec change:** implementation-detail refactoring (preserves behaviour, tests pass), patch fixes (code didn't match spec), supplementary test additions.
+
+## Key Documents
+
+| Document | Purpose |
+|---|---|
+| `PRINCIPLES.md` | Seven principles guiding all design decisions |
+| `workflows/` | Workflow definitions for each development scenario |
+| `docs/templates/` | Document templates used by skills |
+| `.claude/skills/` | Slash skills (Claude Code commands) |
+| `examples/rule-flow-engine/` | Fully governed sample project |

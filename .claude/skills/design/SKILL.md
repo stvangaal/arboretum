@@ -38,11 +38,9 @@ If any exist, present them:
 >
 > Consolidate one of these, or start a new design?"
 
-### Step 1b: Orientation (if project-graph.yaml exists)
+### Step 1b: Survey existing specs
 
-Before starting the brainstorming phase, run `/orient` with the design topic to surface existing specs and skills that may be relevant. This prevents designing something that overlaps with existing governed code.
-
-If `project-graph.yaml` does not exist, skip this step silently.
+Before starting the brainstorming phase, read existing specs in `docs/specs/` and `docs/ARCHITECTURE.md` to surface governed code that may be relevant to the design topic. This prevents designing something that overlaps with existing work.
 
 ### Step 2: Brainstorm (external)
 
@@ -85,7 +83,7 @@ Once the governed spec exists and is `in-progress`:
 
 - This skill is the **conductor** for the design phase. It doesn't replace brainstorming — it ensures the output lands in the right place (governed specs, not just design docs).
 - The critical value is the **brainstorm → consolidate handoff**. Without this wrapper, brainstorming exits into planning without creating a governed spec, which means hooks and register checks don't work during implementation.
-- If the user wants to skip brainstorming and write a spec directly, suggest `/generate-spec` instead.
+- If the user wants to skip brainstorming and write a spec directly, they can create one from `docs/templates/spec.md`.
 - If the user is on the exploratory path and has already explored, skip brainstorming — go straight to consolidation (Step 3).
 
 $ARGUMENTS

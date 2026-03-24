@@ -11,7 +11,7 @@ Phase 0
 
 ## Purpose
 
-Define the test framework, runner configuration, directory layout, and shared utilities that all other specs' tests depend on. This is one of two reserved specs (see SPEC-WORKFLOW.md §5) and must be created before any feature specs are implemented.
+Define the test framework, runner configuration, directory layout, and shared utilities that all other specs' tests depend on. This is one of two reserved specs and must be created before any feature specs are implemented.
 
 ## Requires (Inbound Contracts)
 
@@ -45,8 +45,7 @@ Define the test framework, runner configuration, directory layout, and shared ut
 
 ### Test Directory Layout
 
-<!-- Define the directory structure. The tier layout must follow the convention
-     in SPEC-WORKFLOW.md §6. Adapt the subdirectory naming to your stack.
+<!-- Define the directory structure. Adapt the subdirectory naming to your stack.
 
      Standard layout:
      tests/

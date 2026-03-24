@@ -20,7 +20,8 @@ If `$ARGUMENTS` is provided, use it as the target directory. Otherwise, ask the 
 ### 2. Check existing state
 
 Before running the bootstrap script, check what already exists in the target:
-- Does `SPEC-WORKFLOW.md` already exist?
+- Does `PRINCIPLES.md` already exist?
+- Does `workflows/` already exist?
 - Does `docs/` already exist?
 - Does `CLAUDE.md` already exist?
 - Does `.claude/` already exist?
@@ -66,12 +67,12 @@ If the user declines or wants to skip, proceed without — the architecture can 
 
 After bootstrapping, guide the user based on layer:
 
-**Layer 0:** "Create your first spec with `/generate-spec`. That's all you need to start."
+**Layer 0:** "Start with the feature workflow: write your first spec in `docs/specs/` using the spec template. That's all you need to start."
 
 **Layer 1:** Guide through creation order:
-1. **ARCHITECTURE.md** — `/generate-spec` → Architecture Document
-2. **Shared definitions** — `/generate-spec` → Shared Definition (if needed)
-3. **First spec** — `/generate-spec` → Specification
+1. **ARCHITECTURE.md** — created by `/architect` in the previous step
+2. **Shared definitions** — create in `docs/definitions/` if specs share data structures
+3. **First spec** — write in `docs/specs/` using `docs/templates/spec.md`
 
 **Layer 2:** Same as Layer 1, plus:
 4. **contracts.yaml** — will be populated as specs declare dependencies

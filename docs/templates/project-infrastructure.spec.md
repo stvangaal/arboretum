@@ -11,7 +11,7 @@ Phase 0
 
 ## Purpose
 
-Own all project-level configuration that no feature spec should claim: CI/CD pipelines, git hooks, build configuration, dependency management, and the project skeleton. This is one of two reserved specs (see SPEC-WORKFLOW.md §5) and is the single place where test-pass enforcement is defined.
+Own all project-level configuration that no feature spec should claim: CI/CD pipelines, git hooks, build configuration, dependency management, and the project skeleton. This is one of two reserved specs and is the single place where test-pass enforcement is defined.
 
 ## Requires (Inbound Contracts)
 

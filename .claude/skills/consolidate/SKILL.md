@@ -122,11 +122,7 @@ Formalize code on the current branch into governed specs. Scans changed and new 
 
 ### Step 4: Propose reconciliation plan
 
-#### Orient each group (if project-graph.yaml exists)
-
-For each group of related changes, run `/orient` with a brief description of the group's purpose. This helps determine whether the group belongs to an existing spec or needs a new one. Include the orientation results in the reconciliation plan presentation.
-
-Present a structured reconciliation plan to the user. Group source files into proposed governed specs using SPEC-WORKFLOW.md's spec sizing criteria: single reason to change, files that always change together, cohesive responsibility. When in doubt, propose groupings and let the user adjust.
+Present a structured reconciliation plan to the user. Group source files into proposed governed specs using the spec sizing criteria from `workflows/README.md`: single reason to change, files that always change together, cohesive responsibility. When in doubt, propose groupings and let the user adjust.
 
     ## Reconciliation Plan
 

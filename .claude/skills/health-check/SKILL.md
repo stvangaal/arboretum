@@ -27,6 +27,6 @@ Run the project health check to detect drift across the spec-driven workflow.
 ## Important
 
 - Do NOT auto-fix any issues — the architecture owner approves changes
-- If version pins are stale, suggest running `/sync-contracts` to preview the fix
+- If version pins are stale, suggest reviewing the affected specs' Requires tables
 - If unowned files are found, suggest which spec should own them based on directory location
 - If the health-check script is not found, check that `scripts/health-check.sh` exists and is executable

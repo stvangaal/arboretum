@@ -46,11 +46,9 @@ Present what you found:
 
 Do not block on issue creation — suggest it but proceed if the user declines.
 
-### 2b. Orient against project graph
+### 2b. Survey existing specs
 
-If `project-graph.yaml` exists at the project root, run `/orient` with the issue title and body (or the user's change description if no issue) to understand where this change fits in the existing project structure. Present the orientation results to the user before continuing.
-
-If `project-graph.yaml` does not exist, skip this step silently.
+Read existing specs in `docs/specs/` and `docs/ARCHITECTURE.md` to understand where this change fits in the existing project structure. Identify which specs are likely touched by this work.
 
 ### 3. Check current branch and project state
 
