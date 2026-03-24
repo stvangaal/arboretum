@@ -47,6 +47,7 @@ if [ $# -lt 1 ]; then
   usage
 fi
 
+mkdir -p "$1"
 TARGET_DIR="$(realpath "$1")"
 PROJECT_NAME="${2:-$(basename "$TARGET_DIR")}"
 
@@ -54,10 +55,10 @@ PROJECT_NAME="${2:-$(basename "$TARGET_DIR")}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Templates are at ../docs/templates/ relative to this script
 TEMPLATES_DIR="$(realpath "$SCRIPT_DIR/../docs/templates")"
-# Workflow file is at ../SPEC-WORKFLOW.md
-WORKFLOW_FILE="$(realpath "$SCRIPT_DIR/../SPEC-WORKFLOW.md")"
-# README is at ../docs/SPEC-WORKFLOW-README.md
-README_FILE="$(realpath "$SCRIPT_DIR/../docs/SPEC-WORKFLOW-README.md")"
+# Principles are at ../PRINCIPLES.md
+PRINCIPLES_FILE="$(realpath "$SCRIPT_DIR/../PRINCIPLES.md")"
+# Workflows are at ../workflows/
+WORKFLOWS_DIR="$(realpath "$SCRIPT_DIR/../workflows")"
 # Hooks are at ../.claude/
 HOOKS_DIR="$(realpath "$SCRIPT_DIR/../.claude")"
 # Git hooks are at ../.githooks/
@@ -66,10 +67,10 @@ GITHOOKS_DIR="$(realpath "$SCRIPT_DIR/../.githooks")"
 SKILLS_DIR="$(realpath "$SCRIPT_DIR/../.claude/skills")"
 
 # Verify source files exist
-for f in "$TEMPLATES_DIR/spec-full.md" "$WORKFLOW_FILE" "$README_FILE"; do
+for f in "$TEMPLATES_DIR/spec.md" "$PRINCIPLES_FILE" "$WORKFLOWS_DIR/README.md"; do
   if [ ! -f "$f" ]; then
     echo "Error: source file not found: $f"
-    echo "Run this script from the spec-workflow project directory."
+    echo "Run this script from the arboretum project directory."
     exit 1
   fi
 done
@@ -111,15 +112,19 @@ mkdir_if_missing "$TARGET_DIR/docs/specs"
 mkdir_if_missing "$TARGET_DIR/docs/reference"
 mkdir_if_missing "$TARGET_DIR/docs/plans"
 mkdir_if_missing "$TARGET_DIR/docs/templates"
+mkdir_if_missing "$TARGET_DIR/workflows"
 mkdir_if_missing "$TARGET_DIR/.claude"
 mkdir_if_missing "$TARGET_DIR/.claude/hooks"
 
-# ── Copy workflow files ──────────────────────────────────────────────
+# ── Copy principles and workflows ────────────────────────────────────
 
 echo ""
-echo "Copying workflow files..."
-copy_if_missing "$WORKFLOW_FILE" "$TARGET_DIR/SPEC-WORKFLOW.md"
-copy_if_missing "$README_FILE" "$TARGET_DIR/docs/SPEC-WORKFLOW-README.md"
+echo "Copying principles and workflows..."
+copy_if_missing "$PRINCIPLES_FILE" "$TARGET_DIR/PRINCIPLES.md"
+for wf in "$WORKFLOWS_DIR"/*.md; do
+  basename_wf="$(basename "$wf")"
+  copy_if_missing "$wf" "$TARGET_DIR/workflows/$basename_wf"
+done
 
 # ── Copy templates ───────────────────────────────────────────────────
 
@@ -170,9 +175,9 @@ if [ -d "$SKILLS_DIR" ]; then
   for skill_dir in "$SKILLS_DIR"/*/; do
     [ ! -d "$skill_dir" ] && continue
     skill_name="$(basename "$skill_dir")"
-    # Skip dev-prefixed skills (project-internal, not distributed)
-    if [[ "$skill_name" == dev-* ]]; then
-      echo "  skipped (dev): $skill_name"
+    # Skip dev-prefixed and archived skills
+    if [[ "$skill_name" == dev-* || "$skill_name" == _archived ]]; then
+      echo "  skipped ($skill_name)"
       continue
     fi
     # Only copy if SKILL.md exists
@@ -209,6 +214,12 @@ fi
 echo ""
 echo "Creating contracts.yaml..."
 copy_if_missing "$TEMPLATES_DIR/contracts.yaml" "$TARGET_DIR/contracts.yaml"
+
+# ── Create .publishignore ─────────────────────────────────────────────
+
+echo ""
+echo "Creating .publishignore..."
+copy_if_missing "$TEMPLATES_DIR/publishignore" "$TARGET_DIR/.publishignore"
 
 # ── Create .arboretum.yml ──────────────────────────────────────────────
 
@@ -254,29 +265,24 @@ echo "Done. Project structure:"
 echo ""
 echo "  $TARGET_DIR/"
 echo "  ├── CLAUDE.md                    # AI entry point"
-echo "  ├── SPEC-WORKFLOW.md             # Full workflow rules"
+echo "  ├── PRINCIPLES.md                # Seven principles"
 echo "  ├── contracts.yaml               # Version pins (empty)"
-echo "  ├── .githooks/"
-echo "  │   ├── pre-commit               # Secrets scanning"
-echo "  │   └── post-commit              # Cross-ref validation on doc changes"
+echo "  ├── .publishignore               # Public repo exclusions"
+echo "  ├── .arboretum.yml               # Project config"
+echo "  ├── workflows/                   # 5 workflow definitions"
+echo "  ├── .githooks/                   # Git hooks (secrets, validation)"
 echo "  ├── .claude/"
 echo "  │   ├── settings.json            # Hook configuration"
-echo "  │   ├── hooks/                   # 4 automation hooks"
-echo "  │   └── skills/                  # Framework skills (/pr, /security-review, etc.)"
+echo "  │   ├── hooks/                   # Automation hooks"
+echo "  │   └── skills/                  # Framework skills"
 echo "  └── docs/"
-echo "      ├── SPEC-WORKFLOW-README.md  # Workflow overview"
 echo "      ├── templates/               # Starter templates"
 echo "      ├── definitions/             # (empty — create from architecture)"
-echo "      ├── specs/                   # Reserved specs (Phase 0 templates)"
+echo "      ├── specs/                   # Reserved specs"
 echo "      ├── reference/               # (empty — add domain knowledge)"
 echo "      └── plans/                   # (empty — add during implementation)"
 echo ""
 echo "Next steps:"
 echo "  1. Edit CLAUDE.md with your project overview"
-echo "  2. Write docs/ARCHITECTURE.md (use docs/templates/architecture.md)"
-echo "  3. Extract shared definitions into docs/definitions/"
-echo "  4. Fill in the reserved specs in docs/specs/ (test + project infrastructure)"
-echo "  5. Write feature specs into docs/specs/"
-echo "  6. Build docs/REGISTER.md (use docs/templates/register.md)"
-echo "  7. Populate contracts.yaml from spec version pins"
-echo "  8. Implement in phase + dependency order"
+echo "  2. Run /architect to design your architecture"
+echo "  3. Use /start to begin your first feature"
