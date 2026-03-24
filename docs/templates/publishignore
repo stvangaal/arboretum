@@ -1,0 +1,16 @@
+# .publishignore — files and directories excluded from your public repo
+#
+# This file controls what gets stripped when you run /publish.
+# One pattern per line. Blank lines and lines starting with # are ignored.
+# Patterns follow the same format as .gitignore.
+#
+# The following are always excluded regardless of this file:
+#   .git/  .publishignore  .arboretum.yml  .graduateignore  .claude/projects/
+
+# Process artifacts — useful during development, not needed by contributors
+docs/plans/
+docs/superpowers/
+docs/templates/
+
+# Archived skills — not active, not useful to contributors
+.claude/skills/_archived/
