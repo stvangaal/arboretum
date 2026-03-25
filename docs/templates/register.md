@@ -16,18 +16,13 @@ version: 1
 
 ## Spec Index
 
-| Spec | Phase | Status | Owns (files/directories) | Depends On |
-|------|-------|--------|--------------------------|------------|
-
-## Phase Summary
-
-| Phase | Specs (count) | Status |
-|-------|--------------|--------|
+| Spec | Status | Owns (files/directories) | Depends On |
+|------|--------|--------------------------|------------|
 
 ## Unowned Code
 <!-- This section should always be empty. If it is not, something
      needs to be assigned to a spec or deleted. -->
 
 ## Dependency Resolution Order
-<!-- Topological sort of the spec dependency graph, grouped by phase.
+<!-- Topological sort of the spec dependency graph.
      This is the order in which specs should be implemented. -->

@@ -72,3 +72,7 @@ After PR merges: switch to main, pull, delete feature branch.
 ### 7. Reflect — `/reflect`
 
 Especially valuable for bugs: what did the spec miss? Is there a class of bugs this represents? Should other specs be reviewed for the same gap?
+
+## Transitions
+
+- **→ feature:** If classification reveals a spec gap (not just wrong code), the fix becomes a feature. Branch the feature workflow from the current point.

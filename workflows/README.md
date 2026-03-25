@@ -25,6 +25,9 @@ What are you doing?
 ├── Updating documentation only?
 │   └── documentation
 │
+├── Have an existing project you want to govern?
+│   └── retrofit
+│
 └── Ready to share your project publicly?
     └── publish
 ```
@@ -39,6 +42,7 @@ explore          /start → spike → document → decide (→ feature or → an
 publish          /publish (review → strip → sync)
 refactor         /start → orient → scope → test coverage → restructure → verify → /finish → /cleanup
 documentation    /start → branch → edit → verify refs → /pr → /cleanup
+retrofit         assess → bootstrap → triage → govern-one → [expand]*
 ```
 
 ## Skill legend
@@ -46,7 +50,7 @@ documentation    /start → branch → edit → verify refs → /pr → /cleanup
 | Notation | Meaning |
 |---|---|
 | `/skill` | Arboretum skill (user invokes) |
-| `skill` | External skill (called by arboretum or user) |
+| `capability` | Abstract capability (current provider in parentheses, degrades gracefully if absent) |
 | `step` | Manual step (Claude guides, no skill needed) |
 | `[x]*` | Repeat as needed |
 | `→` | Proceed to next step |
@@ -96,6 +100,65 @@ The user reviews, selects an approach, and updates the spec. The spec returns to
 - **Architecture drift.** The architecture document no longer matches the specs. Fix: update architecture when specs change.
 - **Premature strictness.** Applying stable-definition rules to drafts still being shaped. Fix: use v0 for draft definitions; strict versioning only after `stable`.
 
+## Workflow transitions
+
+Real development is non-linear. These transitions define when and how to pivot between workflows mid-stream.
+
+| From | To | When |
+|------|-----|------|
+| feature → | explore | During survey/design you discover unknowns that need spiking. Pause the feature workflow, enter explore. Return via `/consolidate`. |
+| bug-fix → | feature | Classification reveals a spec gap (not just wrong code). The fix becomes a feature. Branch the feature workflow from the current point. |
+| refactor → | bug-fix | Restructuring surfaces a bug. Pause the refactor, capture the bug as a separate issue. Fix inline if trivial, or start a bug-fix branch. |
+| explore → | feature | A spike produces enough understanding. `/consolidate` findings and enter the feature workflow at the design step. |
+| any → | documentation | You discover docs-only issues during any workflow. Note them for a separate documentation pass after the current workflow completes. |
+
+**Transition protocol:**
+1. Note where you are in the current workflow (so you can return)
+2. Commit or stash in-progress work
+3. Enter the target workflow at its natural entry point
+4. When the target workflow completes, return to the original workflow where you left off (if applicable)
+
+## Signs governance is working
+
+- You're rarely surprised by what Claude implements (your specs are clear)
+- When you change one spec, other specs don't break unexpectedly (ownership is clean)
+- New team members can understand the project by reading specs, not code (traceability works)
+- `/health-check` runs clean most of the time (drift is caught early)
+- You spend more time deciding what to build than debugging what was built
+
+## Signs governance needs adjustment
+
+- You're spending more time on governance than on the actual work (over-governed — drop a layer)
+- Specs are routinely out of date (under-maintained — simplify specs or add automation)
+- Claude keeps asking for permission to update specs (spec-first gate is friction, not value — check if specs are too granular)
+
+## Governance debt
+
+Governance debt is accumulated drift between specs, register, code, and contracts. It happens naturally — branches merge, files get added without ownership, specs go stale.
+
+### Detecting it
+
+Run `/health-check`. It reports all categories of drift.
+
+### Triage by severity
+
+| Severity | Examples | Action |
+|----------|----------|--------|
+| **Blocking** | Spec contradictions, circular dependencies | Fix immediately — these prevent correct implementation |
+| **Moderate** | Unowned files, stale version pins, register gaps | Fix before next PR — these cause confusion |
+| **Low** | Missing optional docs, cosmetic spec issues | Fix when convenient — these don't affect correctness |
+
+### Recovery patterns
+
+- **Many unowned files** → run `/consolidate` to batch-create specs
+- **Stale register** → run `scripts/generate-register.sh` to regenerate
+- **Spec/code divergence** → set spec to `revision-needed`, update, then re-implement
+- **Abandoned branch governance** → delete orphaned specs, regenerate register
+
+### Prevention
+
+Run `/health-check` before every PR. The `/finish` skill already suggests this.
+
 ## Detailed workflows
 
 - [new-project](new-project.md)
@@ -105,3 +168,4 @@ The user reviews, selects an approach, and updates the spec. The spec returns to
 - [publish](publish.md)
 - [refactor](refactor.md)
 - [documentation](documentation.md)
+- [retrofit](retrofit.md)

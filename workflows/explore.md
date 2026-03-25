@@ -60,3 +60,8 @@ One of:
 - A governed spec in `docs/specs/` ready for the feature workflow
 - A documented decision not to proceed (in the GitHub issue)
 - A clear next question for another spike cycle
+
+## Transitions
+
+- **→ feature:** When a spike produces enough understanding, `/consolidate` findings and enter the feature workflow at the design step.
+- **← feature:** If during a feature's survey/design you discover unknowns, enter this workflow to spike. Return to the feature workflow via `/consolidate`.

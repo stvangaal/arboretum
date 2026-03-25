@@ -62,7 +62,7 @@ Tests are tiered: unit (always) → contract (when shared definitions exist) →
 | **Architecture** | `docs/ARCHITECTURE.md` | <!-- draft / active / not yet created --> |
 | **Specs** | `docs/specs/*.spec.md` | <!-- count and status --> |
 | **Register** | `docs/REGISTER.md` | <!-- Layer 1+ --> |
-| **Definitions** | `docs/definitions/` | <!-- Layer 1+ --> |
+| **Definitions** | `docs/definitions/` | <!-- Layer 1+, created when needed --> |
 
 ## Package Structure
 

@@ -8,10 +8,39 @@ It is not a build system, test framework, or replacement for Claude Code. It is 
 
 See `PRINCIPLES.md` for the seven principles that guide all design decisions.
 
+## What You'll Experience
+
+As a human using arboretum, your role is to **decide what to build** and **review what Claude produces**. Here's what that looks like:
+
+1. **You describe what you want** — in plain language, as a GitHub issue or a conversation with Claude.
+2. **Claude routes to a workflow** — it picks the right sequence of steps (feature, bug-fix, explore, etc.) and follows it.
+3. **You review specs** — before code is written, Claude presents a spec describing what will be built. You approve, adjust, or reject.
+4. **Claude builds** — following the spec, using TDD, with ownership tracking.
+5. **You review the result** — via pull request, with governance context (which specs were touched, health-check status).
+
+You don't need to understand every skill or hook. You need to understand specs (your steering wheel) and workflows (the sequence Claude follows).
+
+## How Governance Works
+
+**Checking that Claude is following the process:**
+
+- Every source file should have an `# owner: <spec-name>` comment — if files are missing this, ask Claude to run `/health-check`
+- Specs should move through statuses: `draft` → `ready` → `in-progress` → `implemented` — if a spec is stuck, ask why
+- PRs should reference specs and include health-check results — if they don't, the `/pr` skill wasn't used
+
+**Key artifacts to review:**
+
+| Artifact | What to look for |
+|---|---|
+| `docs/specs/*.spec.md` | Does the Purpose match your intent? Does Behaviour cover the right cases? |
+| `docs/ARCHITECTURE.md` | Does the big picture still make sense? |
+| `docs/REGISTER.md` | Are all files owned? Any orphans? |
+| Pull requests | Does the summary match what you asked for? |
+
 ## Prerequisites
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (CLI)
-- [superpowers](https://github.com/anthropics/superpowers) skills package (for design, planning, TDD, and debugging)
+- [superpowers](https://github.com/anthropics/superpowers) skills package (optional — workflows degrade gracefully without it)
 
 ## CLI Usage
 
@@ -23,7 +52,9 @@ bin/arboretum bootstrap ~/Projects/my-project
 ./arboretum update
 ```
 
-## Workflows
+## Reference
+
+### Workflows
 
 Seven workflows cover the full development lifecycle. See `workflows/README.md` for details.
 
@@ -37,7 +68,7 @@ refactor         /start → orient → scope → test coverage → restructure �
 documentation    /start → branch → edit → verify refs → /pr → /cleanup
 ```
 
-## Skills
+### Skills
 
 **Workflow:** `/start`, `/design`, `/finish`, `/cleanup`, `/reflect`
 
@@ -47,18 +78,18 @@ documentation    /start → branch → edit → verify refs → /pr → /cleanup
 
 **Layer 2:** `/security-review`
 
-### External skills (superpowers)
+### Capability slots (external skills)
 
-Arboretum wraps external skills at workflow transition points rather than building its own:
+Arboretum defines abstract capabilities that workflows need. Each has a current provider (from the superpowers package), but workflows degrade gracefully if the provider is absent.
 
-| External skill | Workflow stage |
-|---|---|
-| `superpowers:brainstorming` | Design |
-| `superpowers:writing-plans` | Planning |
-| `superpowers:test-driven-development` | Build |
-| `superpowers:executing-plans` | Build |
-| `superpowers:subagent-driven-development` | Build (alternative) |
-| `superpowers:systematic-debugging` | Investigation |
+| Capability | Current provider | Workflow stage |
+|---|---|---|
+| Brainstorm | `superpowers:brainstorming` | Design |
+| Plan | `superpowers:writing-plans` | Planning |
+| Build (TDD) | `superpowers:test-driven-development` | Build |
+| Build (execute) | `superpowers:executing-plans` | Build |
+| Build (parallel) | `superpowers:subagent-driven-development` | Build (alternative) |
+| Debug | `superpowers:systematic-debugging` | Investigation |
 
 ## Development Rules
 

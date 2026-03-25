@@ -67,3 +67,8 @@ After PR merges: switch to main, pull, delete feature branch, verify spec status
 ### 8. Reflect — `/reflect`
 
 Capture lessons while context is fresh. What surprised you? What did the AI get right or wrong? What would you change about the spec?
+
+## Transitions
+
+- **→ explore:** If during survey or design you discover unknowns that need spiking, pause this workflow and enter explore. Return via `/consolidate`.
+- **← explore:** When returning from an explore spike, re-enter this workflow at the design step with the new governed spec.

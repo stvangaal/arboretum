@@ -92,3 +92,7 @@ Confirm behaviour is unchanged.
 
 - [Feature workflow](feature.md) — the refactor often unblocks a feature that motivated it
 - [Documentation workflow](documentation.md) — if the restructure changes how things are described
+
+## Transitions
+
+- **→ bug-fix:** If restructuring surfaces a bug, pause the refactor, capture the bug as a separate issue. Fix inline if trivial, or start a bug-fix branch.
