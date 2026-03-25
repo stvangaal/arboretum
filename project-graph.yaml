@@ -11,6 +11,11 @@ nodes:
     name: git-workflow-tooling
     status: draft
     path: docs/specs/git-workflow-tooling.spec.md
+  - id: spec:workflow-management
+    type: spec
+    name: workflow-management
+    status: draft
+    path: docs/specs/workflow-management.spec.md
   - id: skill:architect
     type: skill
     layer: 0
@@ -47,6 +52,12 @@ nodes:
     stage: design
     description: Wrapper skill that orchestrates the design phase — runs external brainstorming to produce a design spec, then consolidates into a governed spec ready for implementation. Use at the start of planned work.
     path: .claude/skills/design/SKILL.md
+  - id: skill:dev-manage-workflows
+    type: skill
+    layer: 0
+    stage: unknown
+    description: Create, validate, and sync workflow documents. Use when adding a new workflow, checking workflow format consistency, or verifying skill references in workflows.
+    path: .claude/skills/dev-manage-workflows/SKILL.md
   - id: skill:finish
     type: skill
     layer: 0
@@ -201,6 +212,27 @@ edges:
     rel: owns
   - from: spec:git-workflow-tooling
     to: "file:scripts/bootstrap-project.sh"
+    rel: owns
+  - from: spec:workflow-management
+    to: "file:workflows/WORKFLOWS.md"
+    rel: owns
+  - from: spec:workflow-management
+    to: "file:workflows/new-project.md"
+    rel: owns
+  - from: spec:workflow-management
+    to: "file:workflows/feature.md"
+    rel: owns
+  - from: spec:workflow-management
+    to: "file:workflows/bug-fix.md"
+    rel: owns
+  - from: spec:workflow-management
+    to: "file:workflows/refactor.md"
+    rel: owns
+  - from: spec:workflow-management
+    to: "file:workflows/documentation.md"
+    rel: owns
+  - from: spec:workflow-management
+    to: "file:.claude/skills/dev-manage-workflows/SKILL.md"
     rel: owns
   - from: skill:architect
     to: skill:init-project
