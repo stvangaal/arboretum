@@ -95,33 +95,33 @@ if [ -n "$new_impl_files" ]; then
   local_list=$(format_file_list "$new_impl_files")
   context+="[Unregistered Files] New implementation files not in register: $local_list"$'\n'
   context+="  → Why: Unregistered files have no spec owner and risk becoming orphan code."$'\n'
-  context+="    Assign them to a spec in REGISTER.md. See SPEC-WORKFLOW.md §4."$'\n'
+  context+="    Assign them to a spec in REGISTER.md."$'\n'
 fi
 
 if [ -n "$definition_changes" ]; then
   local_list=$(format_file_list "$definition_changes")
   context+="[Definition Changed] These definitions were modified: $local_list"$'\n'
   context+="  → Why: Definition changes may be breaking — consuming specs must review and re-pin."$'\n'
-  context+="    Bump the version, update the changelog, and update pins in contracts.yaml. See SPEC-WORKFLOW.md §1."$'\n'
+  context+="    Bump the version, update the changelog, and update pins in contracts.yaml."$'\n'
 fi
 
 if [ -n "$spec_changes" ]; then
   local_list=$(format_file_list "$spec_changes")
   context+="[Spec Changed] These specs were modified: $local_list"$'\n'
   context+="  → Why: Spec changes may affect status, ownership, or dependencies in the register."$'\n'
-  context+="    Verify REGISTER.md is still accurate or run /generate-register. See SPEC-WORKFLOW.md §4."$'\n'
+  context+="    Verify REGISTER.md is still accurate or run scripts/generate-register.sh."$'\n'
 fi
 
 if [ "$contracts_changed" = true ] && [ -n "$spec_changes" ] && [ "$register_changed" = false ]; then
   context+="[Sync Check] contracts.yaml was updated but REGISTER.md was not."$'\n'
   context+="  → Why: These must stay in sync — mismatches cause false positives in staleness checks."$'\n'
-  context+="    Verify the register or run /generate-register. See SPEC-WORKFLOW.md §1."$'\n'
+  context+="    Verify the register or run scripts/generate-register.sh."$'\n'
 fi
 
 if [ -n "$definition_changes" ] && [ "$contracts_changed" = false ]; then
   context+="[Sync Check] Definition files changed but contracts.yaml was not updated."$'\n'
   context+="  → Why: contracts.yaml must reflect current definition versions — stale pins cause false test results."$'\n'
-  context+="    Run /sync-contracts to reconcile. See SPEC-WORKFLOW.md §1."$'\n'
+  context+="    Run scripts/sync-contracts.sh to reconcile."$'\n'
 fi
 
 if [ -n "$context" ]; then

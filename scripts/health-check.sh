@@ -62,7 +62,7 @@ info() {
 
 header "Check 1: Governed documents exist"
 
-[ -f "$PROJECT_DIR/SPEC-WORKFLOW.md" ] && ok "SPEC-WORKFLOW.md" || warn "SPEC-WORKFLOW.md missing"
+[ -f "$PROJECT_DIR/workflows/README.md" ] && ok "workflows/README.md" || warn "workflows/README.md missing"
 [ -f "$PROJECT_DIR/CLAUDE.md" ] && ok "CLAUDE.md" || warn "CLAUDE.md missing"
 [ -f "$PROJECT_DIR/docs/ARCHITECTURE.md" ] && ok "docs/ARCHITECTURE.md" || warn "docs/ARCHITECTURE.md missing"
 [ -f "$REGISTER" ] && ok "docs/REGISTER.md" || warn "docs/REGISTER.md missing"

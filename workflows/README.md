@@ -19,6 +19,12 @@ What are you doing?
 ├── Not sure what to build, need to learn?
 │   └── explore
 │
+├── Restructuring without changing behaviour?
+│   └── refactor
+│
+├── Updating documentation only?
+│   └── documentation
+│
 └── Ready to share your project publicly?
     └── publish
 ```
@@ -26,11 +32,13 @@ What are you doing?
 ## Workflow overview
 
 ```
-new-project    /init-project → /architect → [spike → /consolidate]* → build
-feature        /start → survey → /design → plan → build → /finish → /cleanup → /reflect
-bug-fix        /start → investigate → classify → fix → /finish → /cleanup → /reflect
-explore        /start → spike → document → decide (→ feature or → another spike)
-publish        /publish (review → strip → sync)
+new-project      /init-project → /architect → [spike → /consolidate]* → build
+feature          /start → survey → /design → plan → build → /finish → /cleanup → /reflect
+bug-fix          /start → investigate → classify → fix → /finish → /cleanup → /reflect
+explore          /start → spike → document → decide (→ feature or → another spike)
+publish          /publish (review → strip → sync)
+refactor         /start → orient → scope → test coverage → restructure → verify → /finish → /cleanup
+documentation    /start → branch → edit → verify refs → /pr → /cleanup
 ```
 
 ## Skill legend
@@ -95,3 +103,5 @@ The user reviews, selects an approach, and updates the spec. The spec returns to
 - [bug-fix](bug-fix.md)
 - [explore](explore.md)
 - [publish](publish.md)
+- [refactor](refactor.md)
+- [documentation](documentation.md)

@@ -37,7 +37,7 @@ for protected in "${PROTECTED_BRANCHES[@]}"; do
   if [ "$BRANCH" = "$protected" ]; then
     echo "[Branch Protection] Cannot commit to '$BRANCH'."
     echo "  → Why: All work happens on feature branches for clean history and PR-based review."
-    echo "    Run: git checkout -b feat/your-feature. See SPEC-WORKFLOW.md §9."
+    echo "    Run: git checkout -b feat/your-feature."
     exit 2
   fi
 done

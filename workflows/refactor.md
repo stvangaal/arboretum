@@ -36,7 +36,7 @@ Ensure a GitHub issue exists describing what needs restructuring and why.
 
 ### Step 2: Orient
 Understand which specs own the code being refactored.
-→ `/orient` (identify affected specs)
+→ Review `REGISTER.md` to identify which specs own the code being refactored
 
 ### Step 3: Identify scope
 Define exactly what's changing and what's not. A refactor that changes interfaces is larger than one that changes internals.

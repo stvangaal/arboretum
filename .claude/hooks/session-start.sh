@@ -33,7 +33,7 @@ missing=()
 if [ ${#missing[@]} -gt 0 ]; then
   output+="[Spec Workflow] Missing governed documents: ${missing[*]}."
   output+=$'\n'"  → Why: The document chain must exist top-down before specs can be implemented."
-  output+=$'\n'"    Create them in order: ARCHITECTURE.md → definitions/ → specs → REGISTER.md → contracts.yaml. See SPEC-WORKFLOW.md §7."
+  output+=$'\n'"    Create them in order: ARCHITECTURE.md → definitions/ → specs → REGISTER.md → contracts.yaml. See workflows/README.md."
 fi
 
 # ── Parse register for spec statuses ─────────────────────────────────
@@ -103,7 +103,7 @@ if [ -f "$REGISTER" ] && [ -d "$PROJECT_DIR/docs/specs" ]; then
   if [ "$register_stale" = true ]; then
     output+=$'\n'"[Register] REGISTER.md may be stale — spec files are newer than the register."
     output+=$'\n'"  → Why: Stale register data causes incorrect staleness checks and ownership lookups."
-    output+=$'\n'"    Run /generate-register to resync. See SPEC-WORKFLOW.md §4."
+    output+=$'\n'"    Run scripts/generate-register.sh to resync."
   fi
 fi
 
@@ -137,7 +137,7 @@ if [ -f "$CONTRACTS" ] && [ -d "$DEFS_DIR" ]; then
   if [ -n "$stale" ]; then
     output+=$'\n'"[Stale Version Pins] Definition versions have drifted from contracts.yaml:"$'\n'"$stale"
     output+="  → Why: Implementing against stale pins risks silent drift between code and contracts."
-    output+=$'\n'"    Run /health-check or /sync-contracts to reconcile. See SPEC-WORKFLOW.md §7."
+    output+=$'\n'"    Run /health-check or scripts/sync-contracts.sh to reconcile."
   fi
 fi
 

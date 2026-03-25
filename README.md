@@ -39,14 +39,16 @@ See `PRINCIPLES.md` for the full set. The short version:
 
 ## Workflows
 
-Five workflows cover the full development lifecycle:
+Seven workflows cover the full development lifecycle:
 
 ```
-new-project    Start from nothing → architecture → spike-spec cycles → build
-feature        Planned work → survey → design → plan → build → ship
-bug-fix        Investigate → classify → fix → ship
-explore        Spike → learn → decide (build, spike again, or abandon)
-publish        Prepare your project for public sharing
+new-project      Start from nothing → architecture → spike-spec cycles → build
+feature          Planned work → survey → design → plan → build → ship
+bug-fix          Investigate → classify → fix → ship
+explore          Spike → learn → decide (build, spike again, or abandon)
+publish          Prepare your project for public sharing
+refactor         Restructure without changing behaviour
+documentation    Docs-only changes
 ```
 
 See `workflows/README.md` for detailed stage-by-stage guides.

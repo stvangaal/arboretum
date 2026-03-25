@@ -86,7 +86,7 @@ if [ -n "$owning_spec" ]; then
   else
     context="[Spec Ownership] $REL_PATH is owned by $owning_spec (status: $spec_status)."
     context+=$'\n'"  → Why: Edits should align with spec status — this spec is not in-progress."
-    context+=$'\n'"    Confirm the spec approves this change before proceeding. See SPEC-WORKFLOW.md §8."
+    context+=$'\n'"    Confirm the spec approves this change before proceeding."
   fi
 
   # Check for staleness if spec is in-progress or implemented
@@ -127,7 +127,7 @@ if [ -n "$owning_spec" ]; then
     if [ -n "$stale_pins" ]; then
       context+=$'\n'"[Stale Pins] Definition pins are outdated:$stale_pins."
       context+=$'\n'"  → Why: Implementing against stale pins risks code diverging from the current contract."
-      context+=$'\n'"    Update the spec and contracts.yaml to reflect current versions. See SPEC-WORKFLOW.md §7."
+      context+=$'\n'"    Update the spec and contracts.yaml to reflect current versions."
     fi
   fi
 
@@ -135,12 +135,12 @@ if [ -n "$owning_spec" ]; then
   if [ "$spec_status" = "revision-needed" ]; then
     context+=$'\n'"[Spec Needs Revision] $owning_spec is marked revision-needed."
     context+=$'\n'"  → Why: A known issue was found — changes may conflict with the upcoming revision."
-    context+=$'\n'"    Review the spec's revision notes before proceeding. See SPEC-WORKFLOW.md §7."
+    context+=$'\n'"    Review the spec's revision notes before proceeding."
   fi
 else
   context="[Unowned File] $REL_PATH is not listed in any spec's owned files in REGISTER.md."
   context+=$'\n'"  → Why: Every source file must have exactly one spec owner for traceability."
-  context+=$'\n'"    Assign this file to a spec in REGISTER.md. See SPEC-WORKFLOW.md §2."
+  context+=$'\n'"    Assign this file to a spec in REGISTER.md."
 fi
 
 if [ -n "$context" ]; then

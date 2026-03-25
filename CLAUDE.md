@@ -25,14 +25,16 @@ bin/arboretum bootstrap ~/Projects/my-project
 
 ## Workflows
 
-Five workflows cover the full development lifecycle. See `workflows/README.md` for details.
+Seven workflows cover the full development lifecycle. See `workflows/README.md` for details.
 
 ```
-new-project    /init-project → /architect → [spike → /consolidate]* → build
-feature        /start → survey → /design → plan → build → /finish → /cleanup → /reflect
-bug-fix        /start → investigate → classify → fix → /finish → /cleanup → /reflect
-explore        /start → spike → document → decide (→ feature or → another spike)
-publish        /publish (review → strip → sync)
+new-project      /init-project → /architect → [spike → /consolidate]* → build
+feature          /start → survey → /design → plan → build → /finish → /cleanup → /reflect
+bug-fix          /start → investigate → classify → fix → /finish → /cleanup → /reflect
+explore          /start → spike → document → decide (→ feature or → another spike)
+publish          /publish (review → strip → sync)
+refactor         /start → orient → scope → test coverage → restructure → verify → /finish → /cleanup
+documentation    /start → branch → edit → verify refs → /pr → /cleanup
 ```
 
 ## Skills
