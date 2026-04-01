@@ -52,7 +52,7 @@ if [ -f "$REGISTER" ]; then
     revision_specs=""
     ready_specs=""
 
-    while IFS='|' read -r _ spec phase status _ _; do
+    while IFS='|' read -r _ spec status _ _; do
       spec=$(echo "$spec" | xargs)
       status=$(echo "$status" | xargs)
       case "$status" in

@@ -248,7 +248,7 @@ if [ -f "$REGISTER" ]; then
   existing_dep_order="$section_content"
 fi
 
-# ── Count statuses for phase summary ────────────────────────────────
+# ── Count statuses for status summary ────────────────────────────────
 # Avoid associative arrays (not available in bash 3.x / macOS default).
 # Use parallel arrays instead.
 
@@ -315,7 +315,7 @@ for i in "${!spec_names[@]}"; do
 done
 
 output+=$'\n'
-output+="## Phase Summary"$'\n'
+output+="## Status Summary"$'\n'
 output+=$'\n'
 output+="| Status | Count |"$'\n'
 output+="|--------|-------|"$'\n'
@@ -343,7 +343,7 @@ output+="## Dependency Resolution Order"$'\n'
 if [ -n "$existing_dep_order" ]; then
   output+="$existing_dep_order"
 else
-  output+="<!-- Topological sort of the spec dependency graph, grouped by phase."$'\n'
+  output+="<!-- Topological sort of the spec dependency graph."$'\n'
   output+="     This is the order in which specs should be implemented. -->"$'\n'
 fi
 

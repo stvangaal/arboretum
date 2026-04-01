@@ -3,7 +3,7 @@ name: design
 description: Wrapper skill that orchestrates the design phase — runs external brainstorming to produce a design spec, then consolidates into a governed spec ready for implementation. Use at the start of planned work.
 disable-model-invocation: false
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
-argument-hint: "[path/to/superpowers-spec.md]"
+argument-hint: "[path/to/design-spec.md]"
 layer: 0
 ---
 
@@ -42,19 +42,21 @@ If any exist, present them:
 
 Before starting the brainstorming phase, read existing specs in `docs/specs/` and `docs/ARCHITECTURE.md` to surface governed code that may be relevant to the design topic. This prevents designing something that overlaps with existing work.
 
-### Step 2: Brainstorm (external)
+### Step 2: Brainstorm (capability: brainstorm)
 
 If no existing design spec is being used, initiate the brainstorming process:
 
-1. Tell the user: "Starting the design phase. I'll use the brainstorming skill to explore your idea and produce a design spec."
+1. Tell the user: "Starting the design phase. I'll use the brainstorm capability to explore your idea and produce a design spec."
 
-2. Follow the brainstorming skill's process (this is an external skill — superpowers:brainstorming). It will:
+2. Invoke the **brainstorm** capability (currently provided by `superpowers:brainstorming`). If the provider is not available, conduct the design conversation directly — ask clarifying questions, propose approaches, present a design for approval, and write a design spec to `docs/superpowers/specs/`.
+
+   The brainstorm process will:
    - Ask clarifying questions
    - Propose approaches
    - Present a design for approval
    - Write a design spec to `docs/superpowers/specs/`
 
-3. **Critical handoff:** When the brainstorming skill completes and wants to transition to `writing-plans`, intercept. Instead of proceeding to planning, move to Step 3 (consolidate). The governed spec must exist before planning begins.
+3. **Critical handoff:** When brainstorming completes and wants to transition to planning, intercept. Instead of proceeding to planning, move to Step 3 (consolidate). The governed spec must exist before planning begins.
 
 ### Step 3: Consolidate into governed spec
 
@@ -77,7 +79,7 @@ Run `/consolidate` with the design spec path:
 Once the governed spec exists and is `in-progress`:
 
 1. Suggest: "The spec is ready. Want to create an implementation plan?"
-2. If yes, the user (or Claude) invokes the planning skill (`superpowers:writing-plans`), using the governed spec as input — not the design spec.
+2. If yes, invoke the **plan** capability (currently provided by `superpowers:writing-plans`), using the governed spec as input — not the design spec. If the provider is not available, create the plan directly following the project's plan template.
 
 ## Important
 

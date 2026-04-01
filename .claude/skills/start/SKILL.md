@@ -100,11 +100,24 @@ Based on the user's choice:
 
 - **Exploratory path:** Help create a feature branch if needed. Let the user explore freely. When they signal readiness ("OK I understand now", "let's do it properly"), guide them to run `/consolidate` to formalize their learnings.
 
+## Workflow transitions
+
+If the user's situation changes mid-workflow, re-evaluate and route to the appropriate workflow. Common transitions:
+
+- **feature → explore:** Unknowns surface during survey/design — pause feature, enter explore workflow
+- **bug-fix → feature:** Classification reveals a spec gap, not just wrong code — the fix becomes a feature
+- **refactor → bug-fix:** Restructuring surfaces a bug — pause refactor, capture the bug separately
+- **explore → feature:** Spike produces enough understanding — `/consolidate` findings and enter feature at design step
+- **any → documentation:** Docs-only issues noted during any workflow — handle in a separate pass after current workflow
+
+See `workflows/README.md ## Workflow transitions` for the full transition table.
+
 ## Important
 
 - This skill is **guidance, not a gate**. If the user wants to skip straight to coding, let them — but note what governance steps they're skipping.
 - Do not create files, modify code, or make commits. This skill only gathers context and recommends.
 - If the project is at Layer 0 with no governed documents yet, mention that `/init-project` can set up the infrastructure, but don't block on it.
+- If the project has an existing codebase without governance, suggest the **retrofit** workflow instead.
 - Keep the output concise. The user wants to start working, not read a manual.
 
 $ARGUMENTS

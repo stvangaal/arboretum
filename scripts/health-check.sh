@@ -6,14 +6,13 @@
 # Usage:
 #   ./scripts/health-check.sh [project-dir]
 #
-# Runs eight checks:
+# Runs seven checks:
 #   1. Register vs. disk (do owned files exist? are any source files unowned?)
 #   2. contracts.yaml vs. spec Requires tables (are pins in sync?)
 #   3. contracts.yaml vs. definition versions (are pins current?)
 #   4. Spec status consistency (implemented specs should have code)
 #   5. Missing governed documents
 #   6. Plan files missing Tests section (advisory)
-#   7. Graph freshness (project-graph.yaml vs. source files)
 #
 # Produces a drift report. Does not fix anything.
 # Exit code: 0 if healthy, 1 if drift detected.
@@ -84,11 +83,11 @@ fi
 header "Check 2: Register owned files vs. disk"
 
 # Extract owned file/directory patterns from register
-# Format: | spec.md | phase | status | owns | depends |
+# Format: | spec.md | status | owns | depends |
 missing_files=()
 spec_owns_map=""
 
-while IFS='|' read -r _ spec _ _ owns _; do
+while IFS='|' read -r _ spec _ owns _; do
   spec=$(echo "$spec" | xargs)
   owns=$(echo "$owns" | xargs)
   [ -z "$spec" ] || [ -z "$owns" ] && continue
@@ -249,7 +248,7 @@ fi
 
 header "Check 6: Spec status consistency"
 
-while IFS='|' read -r _ spec _ status owns _; do
+while IFS='|' read -r _ spec status owns _; do
   spec=$(echo "$spec" | xargs)
   status=$(echo "$status" | xargs)
   owns=$(echo "$owns" | xargs)
@@ -330,40 +329,6 @@ else
 
   [ "$plans_checked" -eq 0 ] && info "No test-prudent plans found"
   [ "$plans_checked" -gt 0 ] && [ "$plans_warned" -eq 0 ] && ok "All test-prudent plans have a Tests section"
-fi
-
-# ── Check 7: Graph freshness ────────────────────────────────────────
-
-header "Check 8: project-graph.yaml freshness"
-
-GRAPH_FILE="$PROJECT_DIR/project-graph.yaml"
-
-if [ ! -f "$GRAPH_FILE" ]; then
-  info "project-graph.yaml not found — run: bash scripts/generate-graph.sh"
-else
-  graph_mtime=$(stat -f %m "$GRAPH_FILE" 2>/dev/null || stat -c %Y "$GRAPH_FILE" 2>/dev/null || echo 0)
-  stale=false
-
-  # Check if any source is newer than the graph
-  while IFS= read -r source_file; do
-    [ -f "$source_file" ] || continue
-    source_mtime=$(stat -f %m "$source_file" 2>/dev/null || stat -c %Y "$source_file" 2>/dev/null || echo 0)
-    if [ "$source_mtime" -gt "$graph_mtime" ]; then
-      stale=true
-      warn "project-graph.yaml is older than $(basename "$source_file") — regenerate with: bash scripts/generate-graph.sh"
-      break
-    fi
-  done < <(
-    find "$PROJECT_DIR/docs/specs" -name "*.spec.md" -type f 2>/dev/null
-    find "$PROJECT_DIR/.claude/skills" -name "SKILL.md" -type f 2>/dev/null
-    echo "$PROJECT_DIR/.claude/settings.json"
-    echo "$PROJECT_DIR/docs/REGISTER.md"
-    echo "$PROJECT_DIR/contracts.yaml"
-  )
-
-  if [ "$stale" = false ]; then
-    ok "project-graph.yaml is up to date"
-  fi
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────

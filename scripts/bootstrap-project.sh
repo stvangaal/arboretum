@@ -149,12 +149,43 @@ done
 
 echo ""
 echo "Copying hooks..."
-copy_if_missing "$HOOKS_DIR/settings.json" "$TARGET_DIR/.claude/settings.json"
-for hook in "$HOOKS_DIR/hooks"/*; do
-  basename_hook="$(basename "$hook")"
-  copy_if_missing "$hook" "$TARGET_DIR/.claude/hooks/$basename_hook"
-done
+# Session-start hook: always (Layer 0+)
+copy_if_missing "$HOOKS_DIR/hooks/session-start.sh" "$TARGET_DIR/.claude/hooks/session-start.sh"
+# Pre-commit branch check: Layer 2+ only
+if [ "$MAX_LAYER" -ge 2 ]; then
+  copy_if_missing "$HOOKS_DIR/hooks/pre-commit-branch-check.sh" "$TARGET_DIR/.claude/hooks/pre-commit-branch-check.sh"
+fi
 chmod +x "$TARGET_DIR/.claude/hooks"/*.sh 2>/dev/null || true
+
+# Generate settings.json based on layer
+if [ -f "$TARGET_DIR/.claude/settings.json" ]; then
+  echo "  exists: settings.json"
+else
+  if [ "$MAX_LAYER" -ge 2 ]; then
+    # Full settings: session-start + pre-commit branch check
+    copy_if_missing "$HOOKS_DIR/settings.json" "$TARGET_DIR/.claude/settings.json"
+  else
+    # Layer 0-1: session-start only
+    cat > "$TARGET_DIR/.claude/settings.json" << 'SETTINGS'
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+SETTINGS
+    echo "  created: settings.json"
+  fi
+fi
 
 # ── Copy git hooks ────────────────────────────────────────────────────
 
@@ -269,7 +300,7 @@ echo "  ├── PRINCIPLES.md                # Seven principles"
 echo "  ├── contracts.yaml               # Version pins (empty)"
 echo "  ├── .publishignore               # Public repo exclusions"
 echo "  ├── .arboretum.yml               # Project config"
-echo "  ├── workflows/                   # 5 workflow definitions"
+echo "  ├── workflows/                   # Workflow definitions"
 echo "  ├── .githooks/                   # Git hooks (secrets, validation)"
 echo "  ├── .claude/"
 echo "  │   ├── settings.json            # Hook configuration"
