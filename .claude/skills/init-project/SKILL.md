@@ -63,7 +63,27 @@ Invoke the `/architect` skill to guide the user through an architecture intervie
 
 If the user declines or wants to skip, proceed without — the architecture can be set up later by running `/architect` standalone.
 
-### 6. Guide first steps
+### 6. Customize CLAUDE.md
+
+After the architecture interview, populate the project's CLAUDE.md with project-specific content:
+
+1. Read the generated `CLAUDE.md` (created by bootstrap as a template with placeholders)
+2. **If `/architect` completed and ARCHITECTURE.md exists:**
+   - Fill `## Project Overview` from the architecture's Overview section
+   - Set `## Project Status` to "Phase 0 — initial setup"
+   - Fill `## Package Structure` from the architecture's component model
+   - Fill `## Key Design Decisions` from the architecture's Decisions table
+   - Ask the user: "What's your test command?" and fill `## Running Tests`
+   - Ask the user: "Any runtime requirements or setup steps?" and fill `## Environment`
+3. **If `/architect` was skipped:**
+   - Ask the user three questions: (a) What does this project do? (2 sentences), (b) What's the primary language/stack?, (c) What's the test command?
+   - Fill what you can and leave remaining sections as placeholders
+4. Remove the `<!-- template: customize for your project -->` marker once content is populated
+5. Present the populated CLAUDE.md for user review before writing
+
+This step prevents generic CLAUDE.md files that describe arboretum rather than the actual project.
+
+### 7. Guide first steps
 
 After bootstrapping, guide the user based on layer:
 
@@ -78,7 +98,7 @@ After bootstrapping, guide the user based on layer:
 4. **contracts.yaml** — will be populated as specs declare dependencies
 5. **CI setup** — health-check and contract tests in CI pipeline
 
-### 7. Verify
+### 8. Verify
 
 Run `bash scripts/health-check.sh` against the new project to confirm the structure is valid.
 
