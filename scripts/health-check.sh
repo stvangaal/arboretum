@@ -210,6 +210,13 @@ if [ ! -f "$CONTRACTS" ] || [ ! -d "$DEFS_DIR" ]; then
 else
   stale_count=0
 
+  # Check for empty contracts when definitions exist
+  has_pins=$(grep -cE '^\s+definitions/' "$CONTRACTS" 2>/dev/null || echo 0)
+  def_file_count=$(find "$DEFS_DIR" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$has_pins" -eq 0 ] && [ "$def_file_count" -gt 0 ]; then
+    warn "contracts.yaml has no version pins but $def_file_count definitions exist — run scripts/sync-contracts.sh"
+  fi
+
   # Extract all definition references and pinned versions from contracts.yaml
   pins=$(grep -E '^\s+definitions/' "$CONTRACTS" 2>/dev/null | sed 's/#.*//' || true)
 
@@ -263,9 +270,19 @@ while IFS='|' read -r _ spec status owns _; do
         warn "$spec: status=implemented but owns no files"
       fi
       ;;
-    draft)
-      # Draft specs probably shouldn't have implementation files yet
-      # (warning, not error — draft mode allows continuing)
+    draft|ready)
+      # Check if owned files already exist — suggests spec should be promoted
+      if [ -n "$owns" ] && [ "$owns" != "(none)" ]; then
+        for pattern in $(echo "$owns" | tr ',' '\n'); do
+          pattern=$(echo "$pattern" | xargs)
+          [ -z "$pattern" ] && continue
+          [ "$pattern" = "..." ] && continue
+          if [ -e "$PROJECT_DIR/$pattern" ]; then
+            warn "$spec: status=$status but owned files exist on disk — consider promoting"
+            break
+          fi
+        done
+      fi
       ;;
     revision-needed)
       warn "$spec: status=revision-needed — requires attention"

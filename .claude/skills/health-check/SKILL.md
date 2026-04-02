@@ -19,8 +19,9 @@ Run the project health check to detect drift across the spec-driven workflow.
    - Check 2: Register owned files vs. disk
    - Check 3: Unowned source files
    - Check 4: contracts.yaml vs. spec Requires tables
-   - Check 5: contracts.yaml vs. definition versions (staleness)
-   - Check 6: Spec status consistency
+   - Check 5: contracts.yaml vs. definition versions (staleness + empty contracts detection)
+   - Check 6: Spec status consistency (includes reverse-drift: code exists but spec says draft/ready)
+   - Check 7: Plan files — Tests section (advisory)
 3. If the script exits with code 0 (healthy), confirm the project is in good shape
 4. If the script exits with code 1 (drift detected), summarize the issues found and suggest specific fixes
 

@@ -151,9 +151,17 @@ echo ""
 echo "Copying hooks..."
 # Session-start hook: always (Layer 0+)
 copy_if_missing "$HOOKS_DIR/hooks/session-start.sh" "$TARGET_DIR/.claude/hooks/session-start.sh"
+# Pre-implementation check: Layer 1+ (ownership awareness on edits)
+if [ "$MAX_LAYER" -ge 1 ]; then
+  copy_if_missing "$HOOKS_DIR/hooks/pre-implementation-check.sh" "$TARGET_DIR/.claude/hooks/pre-implementation-check.sh"
+fi
 # Pre-commit branch check: Layer 2+ only
 if [ "$MAX_LAYER" -ge 2 ]; then
   copy_if_missing "$HOOKS_DIR/hooks/pre-commit-branch-check.sh" "$TARGET_DIR/.claude/hooks/pre-commit-branch-check.sh"
+fi
+# Post-commit drift check: Layer 2+ only
+if [ "$MAX_LAYER" -ge 2 ]; then
+  copy_if_missing "$HOOKS_DIR/hooks/post-commit-check.sh" "$TARGET_DIR/.claude/hooks/post-commit-check.sh"
 fi
 chmod +x "$TARGET_DIR/.claude/hooks"/*.sh 2>/dev/null || true
 
@@ -162,10 +170,41 @@ if [ -f "$TARGET_DIR/.claude/settings.json" ]; then
   echo "  exists: settings.json"
 else
   if [ "$MAX_LAYER" -ge 2 ]; then
-    # Full settings: session-start + pre-commit branch check
+    # Full settings: all hooks
     copy_if_missing "$HOOKS_DIR/settings.json" "$TARGET_DIR/.claude/settings.json"
+  elif [ "$MAX_LAYER" -ge 1 ]; then
+    # Layer 1: session-start + pre-implementation check
+    cat > "$TARGET_DIR/.claude/settings.json" << 'SETTINGS'
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-implementation-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+SETTINGS
+    echo "  created: settings.json"
   else
-    # Layer 0-1: session-start only
+    # Layer 0: session-start only
     cat > "$TARGET_DIR/.claude/settings.json" << 'SETTINGS'
 {
   "hooks": {

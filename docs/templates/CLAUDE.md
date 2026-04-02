@@ -2,6 +2,8 @@
 version: 1
 ---
 
+<!-- template: customize for your project -->
+
 # CLAUDE.md
 
 ## Project Overview
