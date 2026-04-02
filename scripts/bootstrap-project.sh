@@ -320,11 +320,16 @@ echo "Creating .arboretum.yml..."
 if [ -f "$TARGET_DIR/.arboretum.yml" ]; then
   echo "  exists: .arboretum.yml"
 else
+  # Prefer remote URL so .arboretum.yml is portable across machines
+  ARBORETUM_SOURCE="$REPO_ROOT"
+  if remote_url=$(cd "$REPO_ROOT" && git remote get-url origin 2>/dev/null); then
+    ARBORETUM_SOURCE="$remote_url"
+  fi
   cat > "$TARGET_DIR/.arboretum.yml" << ARBORETUM
 # Arboretum project configuration
 # layer: 0 = foundation, 1 = structure, 2 = governance
 layer: $( [ "$LAYER_EXPLICIT" = true ] && echo "$MAX_LAYER" || echo "0" )
-arboretum_home: $REPO_ROOT
+arboretum_home: $ARBORETUM_SOURCE
 ARBORETUM
   echo "  created: .arboretum.yml"
 fi

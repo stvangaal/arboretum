@@ -54,22 +54,45 @@ MAX_LAYER=$(sed -n 's/^layer:[[:space:]]*\([0-9]*\).*/\1/p' "$CONFIG")
 MAX_LAYER="${MAX_LAYER:-0}"
 
 # Resolve arboretum home: ARBORETUM_HOME env var → arboretum_home in config
-if [ -n "${ARBORETUM_HOME:-}" ]; then
-  ARBORETUM_DIR="$ARBORETUM_HOME"
-elif grep -q '^arboretum_home:' "$CONFIG" 2>/dev/null; then
-  ARBORETUM_DIR=$(sed -n 's/^arboretum_home:[[:space:]]*//p' "$CONFIG")
-else
+# Supports both local paths and remote URLs (https://, git@)
+ARBORETUM_CLONED=false
+
+resolve_arboretum_ref() {
+  if [ -n "${ARBORETUM_HOME:-}" ]; then
+    echo "$ARBORETUM_HOME"
+  elif grep -q '^arboretum_home:' "$CONFIG" 2>/dev/null; then
+    sed -n 's/^arboretum_home:[[:space:]]*//p' "$CONFIG"
+  else
+    return 1
+  fi
+}
+
+ARBORETUM_REF=$(resolve_arboretum_ref) || {
   echo "Error: cannot find arboretum source."
   echo "Set ARBORETUM_HOME or add arboretum_home: to .arboretum.yml"
   exit 1
-fi
+}
 
-if [ ! -d "$ARBORETUM_DIR" ] || [ ! -f "$ARBORETUM_DIR/bin/arboretum" ]; then
-  echo "Error: arboretum source not found at: $ARBORETUM_DIR"
-  exit 1
+if [[ "$ARBORETUM_REF" == http://* || "$ARBORETUM_REF" == https://* || "$ARBORETUM_REF" == git@* ]]; then
+  # Remote URL — shallow clone to a temp directory
+  ARBORETUM_DIR=$(mktemp -d)
+  ARBORETUM_CLONED=true
+  cleanup_clone() { rm -rf "$ARBORETUM_DIR"; }
+  trap cleanup_clone EXIT
+  echo "Fetching arboretum from $ARBORETUM_REF ..."
+  if ! git clone --depth 1 -q "$ARBORETUM_REF" "$ARBORETUM_DIR" 2>/dev/null; then
+    echo "Error: failed to clone arboretum from: $ARBORETUM_REF"
+    exit 1
+  fi
+else
+  # Local path
+  ARBORETUM_DIR="$ARBORETUM_REF"
+  if [ ! -d "$ARBORETUM_DIR" ] || [ ! -f "$ARBORETUM_DIR/bin/arboretum" ]; then
+    echo "Error: arboretum source not found at: $ARBORETUM_DIR"
+    exit 1
+  fi
+  ARBORETUM_DIR="$(realpath "$ARBORETUM_DIR")"
 fi
-
-ARBORETUM_DIR="$(realpath "$ARBORETUM_DIR")"
 
 # Source directories
 TEMPLATES_DIR="$ARBORETUM_DIR/docs/templates"
@@ -181,7 +204,11 @@ sync_file() {
 
 # ── Walk framework-owned files ─────────────────────────────────────
 
-echo "arboretum update (layer: $MAX_LAYER, source: $ARBORETUM_DIR)"
+if [ "$ARBORETUM_CLONED" = true ]; then
+  echo "arboretum update (layer: $MAX_LAYER, source: $ARBORETUM_REF)"
+else
+  echo "arboretum update (layer: $MAX_LAYER, source: $ARBORETUM_DIR)"
+fi
 echo ""
 
 if [ "$FIRST_RUN" = true ]; then
