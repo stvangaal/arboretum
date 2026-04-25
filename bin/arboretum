@@ -37,7 +37,9 @@ case "$COMMAND" in
     exec "$REPO_ROOT/scripts/bootstrap-project.sh" "$@"
     ;;
   update)
-    exec "$REPO_ROOT/scripts/update-project.sh" "$@"
+    echo "Error: 'arboretum update' is not yet implemented."
+    echo "For now, re-run bootstrap — it is idempotent and will not overwrite existing files."
+    exit 1
     ;;
   -h|--help|help)
     usage

@@ -6,6 +6,17 @@ Add or change behaviour in an existing project. This covers new features, enhanc
 
 You have a GitHub issue describing something to add or change, and the project already exists with specs and architecture.
 
+## Path selection — A or B?
+
+This workflow supports both governance paths.
+
+- **Path A (spec-first)** — *default for well-understood features.* Write the governed spec, then build. Use when the design is clear; you can describe Behaviour upfront.
+- **Path B (design-first)** — *default for genuinely exploratory features.* Brainstorm, build, then `/consolidate` produces the governed spec from built state. Use when the design is still emerging and the right Behaviour wording will only crystallize after seeing the code.
+
+If unsure, default to Path A — it's cheaper to switch from A to B (drop the spec, brainstorm fresh) than from B to A (you've already coded against unsettled design).
+
+The Stages below describe Path A; for Path B, the order changes to: design spec → plan → build → `/consolidate` (creates governed spec from built state) → `/finish`.
+
 ## Stages
 
 ```
@@ -48,14 +59,14 @@ Create an implementation plan from the spec. The plan breaks the work into order
 
 ### 5. Build
 
-Implement the plan using TDD. Promote affected specs to `in-progress` before writing code.
+Implement the plan using TDD. The spec stays at `draft` while the code is being written; `/consolidate` flips it to `active` after the build succeeds (Path A) or creates it at `active` from built state (Path B). No manual promotion step.
 
-**Skills:** `/promote-spec` (to `in-progress`), `superpowers:test-driven-development`, `superpowers:executing-plans`
+**Skills:** `superpowers:test-driven-development`, `superpowers:executing-plans`
 **Cycle:** For each plan step: write failing test → write code → refactor → commit.
 
 ### 6. Finish — `/finish`
 
-Verify implementation matches spec. Promote spec to `implemented`. Create pull request.
+Verify implementation matches spec. `/consolidate` runs as part of `/finish` to auto-flip the spec status to `active`. Create pull request.
 
 **Skills:** `/finish` orchestrates: health check → spec promotion → `/pr`
 **Output:** A pull request with governance context.

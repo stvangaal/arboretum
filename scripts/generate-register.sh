@@ -320,7 +320,7 @@ output+=$'\n'
 output+="| Status | Count |"$'\n'
 output+="|--------|-------|"$'\n'
 
-for status in draft ready in-progress implemented revision-needed; do
+for status in draft active stale; do
   count=$(get_status_count "$status")
   if [ "$count" -gt 0 ]; then
     output+="| $status | $count |"$'\n'

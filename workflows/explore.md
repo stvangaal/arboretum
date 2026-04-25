@@ -9,6 +9,15 @@ You don't know enough to write a spec yet. Spike, learn, and either produce a sp
 - You're not sure how to decompose a problem into specs
 - You want to prototype before committing to a design
 
+## Spike vs. Path B — what are you producing?
+
+The explore workflow accommodates both *spikes* (output is knowledge) and the early stages of *Path B* (output will eventually be shipped code). The decision rule is **"what artifact emerges at the end?"**
+
+- **Spike:** the deliverable is a *findings document*. Code (if any) is reference-only and never owned by a spec. Branch is `spike/*` and gets deleted after the findings are captured.
+- **Path B:** the deliverable is *shipped code* with an owning governed spec. Branch is `feat/*` and merges.
+
+If you don't know yet, start as a spike — it's easier to graduate to Path B later than to retroactively delete code that turned out to be exploratory.
+
 ## Stages
 
 ```
@@ -46,13 +55,15 @@ Write down what you learned. This doesn't need to be formal — a few sentences 
 
 ### 3. Decide
 
-After one or more spike cycles, you know enough to choose:
+Document your findings, then choose one of five options:
 
-**Ready to build** — You understand the problem well enough to write a spec. Transition to the feature workflow: `/consolidate` your findings into a governed spec, then follow feature stages from `/design` onward.
+1. **Continue exploring** — more knowledge needed. Keep spiking on the same branch or start a new spike.
+2. **Transition to Path B** — enough knowledge to start code, but design still emerging. Document, then start a `feat/*` branch via `/design`.
+3. **Transition to Path A** — enough knowledge to write the governed spec upfront. Document, then start with `/design` → governed spec → plan → build.
+4. **File for later** — worth doing, but not now. Capture findings as a tracked GitHub issue, close the spike branch.
+5. **Close (no action)** — the spike answered "no, not worth doing" or "no change needed." Close the branch with the findings retained as a record.
 
-**Another spike needed** — You answered one question but surfaced a new one. Return to step 2.
-
-**Abandon** — The investigation showed this isn't worth pursuing. Document why in the issue and close it. This is a valid outcome — not all explorations lead to code.
+Re-invoke `/start` with the chosen next step. The findings document remains as historical record regardless of the choice.
 
 ## Exit criteria
 

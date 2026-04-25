@@ -62,43 +62,39 @@ Report:
 - Any uncommitted work
 - Whether they need to create a feature branch
 
-### 4. Determine the workflow path
+### 4. Determine the workflow path — A or B
 
-Based on the user's request, recommend one of two paths:
+Recommend Path A (spec-first) or Path B (design-first):
 
-**Planned path** — when the user knows what they want to build:
-- Clear feature request ("add X", "change Y to do Z")
+**Path A (spec-first)** — recommend when:
+- The user can describe Behaviour upfront ("add X that does Y when Z")
 - Bug with known root cause ("the auth handler doesn't validate expiry")
-- Refactor with clear scope ("split the router into per-resource files")
+- Refactor with clear scope (existing spec describes the behaviour to preserve)
 
-**Exploratory path** — when the user needs to investigate first:
-- Unclear bug ("something is wrong with login")
-- Open-ended exploration ("can we improve performance?")
-- Unfamiliar area ("I need to understand how the auth system works before changing it")
+**Path B (design-first)** — recommend when:
+- The right Behaviour wording will only crystallize after seeing code
+- Open-ended improvement ("can we improve performance? unclear how yet")
+- Significant new architecture worth a brainstorm before any code
 
-Present your recommendation:
-> "This sounds like a **planned change** — you know what you want to build. I'd recommend:
-> 1. Design the change (brainstorm → governed spec)
-> 2. Plan the implementation
-> 3. Implement on a feature branch
+If unsure, default to Path A — it's cheaper to switch from A to B (drop the spec, brainstorm fresh) than from B to A (you've already coded against unsettled design).
+
+Present recommendation:
+> "This sounds like **Path A (spec-first)**. I'd recommend:
+>  1. Run `/design` to settle the spec
+>  2. `/consolidate` to create the governed spec at `docs/specs/`
+>  3. Plan and build
+>  4. `/finish` to PR
 >
-> Want to start with the design?"
+> Or do you want to take **Path B (design-first)** — brainstorm and build first, governed spec at the end?"
 
-Or:
-> "This sounds like it needs **exploration first** — let's investigate before committing to an approach. I'd recommend:
-> 1. Create a feature branch
-> 2. Explore / spike to understand the problem
-> 3. Once you have clarity, formalize into a spec and implement properly
->
-> Want to start exploring?"
+For genuinely exploratory questions (no idea what to build yet), the **explore** workflow with a *spike* may be more appropriate than Path B — see `workflows/explore.md ## Spike vs. Path B`.
 
 ### 5. Route to next step
 
 Based on the user's choice:
 
-- **Planned path:** Suggest invoking the brainstorming skill to design the change. After brainstorming completes, Claude should guide the user to run `/consolidate` to create the governed spec, then proceed to planning and implementation.
-
-- **Exploratory path:** Help create a feature branch if needed. Let the user explore freely. When they signal readiness ("OK I understand now", "let's do it properly"), guide them to run `/consolidate` to formalize their learnings.
+- **Path A:** Invoke `/design` to brainstorm and produce the governed spec, then transition to planning and build.
+- **Path B:** Invoke `/design` to brainstorm and produce a *design spec* in `docs/superpowers/specs/`, then transition to planning and build; `/consolidate` runs at the end to produce the governed spec from built state.
 
 ## Workflow transitions
 

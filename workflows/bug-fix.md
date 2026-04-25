@@ -6,6 +6,12 @@ Something doesn't work as specified. Investigate, determine whether the spec or 
 
 You have a bug report (usually a GitHub issue) describing behaviour that doesn't match expectations.
 
+## Path selection — A or B?
+
+Bug fixes are almost always **Path A** — the existing spec describes the intended behaviour; the bug is a divergence from the spec. The fix restores conformance.
+
+**Path B applies only** when investigation reveals the bug is actually a *spec gap* — the spec didn't say what should happen in this case. That's a feature-shaped problem; transition to the feature workflow with a design spec rather than treating it as a bug fix.
+
 ## Stages
 
 ```
@@ -54,14 +60,13 @@ Fix the right thing, using TDD.
 
 **If spec + code fix:**
 1. Update the spec (Purpose or Behaviour section)
-2. `/promote-spec` to `in-progress` (if not already)
-3. Write a failing test that captures the corrected behaviour
-4. Fix the code
-5. Commit
+2. Write a failing test that captures the corrected behaviour
+3. Fix the code
+4. Commit (the spec's status will reconcile via `/consolidate`/`/health-check` automatically — no manual promotion needed)
 
 ### 5. Finish — `/finish`
 
-Verify the fix. Promote spec to `implemented` if it was updated. Create pull request.
+Verify the fix. If the spec was updated, `/consolidate` (run as part of `/finish`) reconciles status to `active`. Create pull request.
 
 **PR should reference the GitHub issue** (e.g., "Fixes #42").
 

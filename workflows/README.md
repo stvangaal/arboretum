@@ -45,6 +45,17 @@ documentation    /start → branch → edit → verify refs → /pr → /cleanup
 retrofit         assess → bootstrap → triage → govern-one → [expand]*
 ```
 
+## Cross-path invariants
+
+These rules hold regardless of which path you take. The paths differ in *governance timing*, not in *delivery rigour*.
+
+1. Every source file has `# owner: <spec-name>` from its first commit (not retrofitted at PR time).
+2. Every PR has an owning governed spec at status `active` (or `draft` for WIP, with the spec activated as part of the PR).
+3. Tests land before or alongside implementation (TDD discipline, both paths).
+4. The Behaviour section of the governed spec is human-authored regardless of path.
+5. PRs scope by intent, not "everything in the tree" — hunk-staging when needed.
+6. Pick one path per slice — don't mix Path A and Path B within a single PR. If exploration mid-Path-B reveals shared definitions or contract locks are needed, pause and author the governed spec before continuing.
+
 ## Skill legend
 
 | Notation | Meaning |
@@ -77,7 +88,7 @@ When all involved documents (the spec and its dependencies) have status `draft`:
 - Hard stops are reserved for **contradictions** (the spec says two incompatible things) and **infeasibility** (the approach cannot work as described)
 - Minor TBDs, stylistic choices, and edge case questions are logged and implementation proceeds
 
-This prevents the workflow from stalling during early development when everything is being shaped simultaneously. Once documents move to `ready` or `stable`, the strict "stop and report" rule applies.
+This prevents the workflow from stalling during early development when everything is being shaped simultaneously. Once documents move to `active`, the strict "stop and report" rule applies.
 
 ## Revision protocol
 
@@ -86,10 +97,10 @@ When Claude discovers during implementation that a spec is wrong (not ambiguous,
 1. **Stop implementation** of the affected behaviour
 2. **Document the finding** — what was attempted, what failed, why it won't work
 3. **Propose alternatives** — 1-3 approaches with trade-offs
-4. **Set the spec status to `revision-needed`**
+4. **The spec's status will flip to `stale`** automatically (via `/health-check`) when drift is detected, or remain `active` if `/consolidate` reconciles immediately
 5. **Continue implementing unaffected parts** if they are independent
 
-The user reviews, selects an approach, and updates the spec. The spec returns to `ready` or `draft` for re-implementation.
+The user reviews, selects an approach, and updates the spec. The spec stays at `active` (or returns to it via `/consolidate` once the new code lands).
 
 ## Anti-patterns
 
@@ -152,7 +163,7 @@ Run `/health-check`. It reports all categories of drift.
 
 - **Many unowned files** → run `/consolidate` to batch-create specs
 - **Stale register** → run `scripts/generate-register.sh` to regenerate
-- **Spec/code divergence** → set spec to `revision-needed`, update, then re-implement
+- **Spec/code divergence** → `/health-check` flips spec to `stale`; run `/consolidate` to reconcile (either update the spec to match code, or revert the code to match the spec)
 - **Abandoned branch governance** → delete orphaned specs, regenerate register
 
 ### Prevention

@@ -6,15 +6,19 @@
 # Usage:
 #   ./scripts/health-check.sh [project-dir]
 #
-# Runs seven checks:
-#   1. Register vs. disk (do owned files exist? are any source files unowned?)
-#   2. contracts.yaml vs. spec Requires tables (are pins in sync?)
-#   3. contracts.yaml vs. definition versions (are pins current?)
-#   4. Spec status consistency (implemented specs should have code)
-#   5. Missing governed documents
-#   6. Plan files missing Tests section (advisory)
+# Runs eight checks:
+#   1. Governed documents exist (ARCHITECTURE, REGISTER, contracts, etc.)
+#   2. Register vs. disk (do owned files exist?)
+#   3. Unowned source files
+#   4. contracts.yaml vs. spec Requires tables (are pins in sync?)
+#   5. contracts.yaml vs. definition versions (are pins current?)
+#   6. Spec status consistency (status enum is one of draft/active/stale)
+#   7. Spec drift detection (auto-flips active → stale when owned files
+#      are modified after the spec's last commit). This is the only
+#      mutation; status is structurally bounded so writing it is safe.
+#   8. Plan files missing Tests section (advisory)
 #
-# Produces a drift report. Does not fix anything.
+# Produces a drift report. Mutates only spec status (Check 7).
 # Exit code: 0 if healthy, 1 if drift detected.
 
 set -euo pipefail
@@ -210,13 +214,6 @@ if [ ! -f "$CONTRACTS" ] || [ ! -d "$DEFS_DIR" ]; then
 else
   stale_count=0
 
-  # Check for empty contracts when definitions exist
-  has_pins=$(grep -cE '^\s+definitions/' "$CONTRACTS" 2>/dev/null || echo 0)
-  def_file_count=$(find "$DEFS_DIR" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
-  if [ "$has_pins" -eq 0 ] && [ "$def_file_count" -gt 0 ]; then
-    warn "contracts.yaml has no version pins but $def_file_count definitions exist — run scripts/sync-contracts.sh"
-  fi
-
   # Extract all definition references and pinned versions from contracts.yaml
   pins=$(grep -E '^\s+definitions/' "$CONTRACTS" 2>/dev/null | sed 's/#.*//' || true)
 
@@ -264,28 +261,20 @@ while IFS='|' read -r _ spec status owns _; do
   spec_file="$SPECS_DIR/$spec"
 
   case "$status" in
-    implemented)
-      # Implemented specs should have owned files that exist
+    draft)
+      # Draft specs may or may not have code; drift detection doesn't apply
+      ;;
+    active)
+      # Active specs should have owned files that exist
       if [ -z "$owns" ] || [ "$owns" = "(none)" ]; then
-        warn "$spec: status=implemented but owns no files"
+        warn "$spec: status=active but owns no files"
       fi
       ;;
-    draft|ready)
-      # Check if owned files already exist — suggests spec should be promoted
-      if [ -n "$owns" ] && [ "$owns" != "(none)" ]; then
-        for pattern in $(echo "$owns" | tr ',' '\n'); do
-          pattern=$(echo "$pattern" | xargs)
-          [ -z "$pattern" ] && continue
-          [ "$pattern" = "..." ] && continue
-          if [ -e "$PROJECT_DIR/$pattern" ]; then
-            warn "$spec: status=$status but owned files exist on disk — consider promoting"
-            break
-          fi
-        done
-      fi
+    stale)
+      warn "$spec: status=stale — drift recorded; run /consolidate to reconcile"
       ;;
-    revision-needed)
-      warn "$spec: status=revision-needed — requires attention"
+    *)
+      warn "$spec: unknown status '$status' — must be one of: draft, active, stale"
       ;;
   esac
 
@@ -297,9 +286,117 @@ done < <(grep -E '^\|.*\.spec' "$REGISTER" 2>/dev/null || true)
 
 ok "Status consistency check complete"
 
-# ── Check 6: Plan files missing Tests section ────────────────────────
+# ── Check 7: Spec drift detection (auto-flip active → stale) ─────────
 
-header "Check 7: Plan files — Tests section"
+header "Check 7: Spec drift (auto-flip active → stale)"
+
+# For each spec at status active, check whether any owned file was modified
+# in commits AFTER the spec's most recent commit. If so, the spec is out of
+# sync with its owned code → flip status to stale in REGISTER.md and spec
+# frontmatter so the user is prompted to run /consolidate.
+#
+# This is the only mutation this script performs. All other findings are
+# advisory ("do not auto-fix"). Drift status is structurally bounded by
+# the spec status enum, so writing it is safe.
+
+drift_flipped=0
+no_drift_count=0
+
+while IFS='|' read -r _ spec status owns _; do
+  spec=$(echo "$spec" | xargs)
+  status=$(echo "$status" | xargs)
+  owns=$(echo "$owns" | xargs)
+  [ -z "$spec" ] && continue
+  [ "$status" != "active" ] && continue
+
+  spec_file="$SPECS_DIR/$spec"
+  [ ! -f "$spec_file" ] && continue
+
+  # git pathspecs are evaluated relative to the repo root; pass repo-relative
+  # paths, not absolute, or the commit hash comes back empty.
+  spec_rel="docs/specs/$spec"
+
+  # Most recent commit touching the spec file
+  spec_last_commit=$(git -C "$PROJECT_DIR" log -1 --format=%H -- "$spec_rel" 2>/dev/null)
+  [ -z "$spec_last_commit" ] && continue
+
+  drift=false
+  drift_file=""
+
+  for pattern in $(echo "$owns" | tr ',' '\n'); do
+    pattern=$(echo "$pattern" | xargs)
+    [ -z "$pattern" ] && continue
+
+    # Resolve pattern to actual files
+    if [[ "$pattern" == *"**"* ]]; then
+      dir="${pattern%%\*\*}"
+      dir="${dir%/}"
+      [ ! -d "$PROJECT_DIR/$dir" ] && continue
+      file_list=$(find "$PROJECT_DIR/$dir" -type f 2>/dev/null)
+    elif [ -e "$PROJECT_DIR/$pattern" ]; then
+      file_list="$PROJECT_DIR/$pattern"
+    else
+      continue
+    fi
+
+    for owned_file in $file_list; do
+      # Convert to repo-relative for git pathspec
+      owned_rel="${owned_file#$PROJECT_DIR/}"
+      owned_last_commit=$(git -C "$PROJECT_DIR" log -1 --format=%H -- "$owned_rel" 2>/dev/null)
+      [ -z "$owned_last_commit" ] && continue
+      [ "$owned_last_commit" = "$spec_last_commit" ] && continue
+      # spec_last_commit ancestor of owned_last_commit → owned modified later → drift
+      if git -C "$PROJECT_DIR" merge-base --is-ancestor "$spec_last_commit" "$owned_last_commit" 2>/dev/null; then
+        drift=true
+        drift_file="$owned_rel"
+        break 2
+      fi
+    done
+  done
+
+  if [ "$drift" = true ]; then
+    # Escape spec name for literal use in sed's regex pattern (spec filenames
+    # contain `.` which would match any character without escaping).
+    escaped_spec=$(printf '%s' "$spec" | sed 's/[][\\.^$*|/]/\\&/g')
+
+    # Flip REGISTER.md status: "| <spec> | active " → "| <spec> | stale "
+    sed -i.bak -E "s/^\| ${escaped_spec} \| active /| ${spec} | stale /" "$REGISTER"
+    rm -f "$REGISTER.bak"
+
+    # Flip spec status to stale in either supported format:
+    # - YAML frontmatter: "status: active" → "status: stale"
+    # - Legacy markdown section:
+    #     ## Status
+    #     active
+    if grep -q '^status: active$' "$spec_file"; then
+      sed -i.bak "s/^status: active$/status: stale/" "$spec_file"
+    elif grep -q '^## Status$' "$spec_file"; then
+      sed -i.bak '/^## Status$/{
+n
+s/^active$/stale/
+}' "$spec_file"
+    fi
+    rm -f "$spec_file.bak"
+
+    # warn() already increments issue_count and sets drift_found
+    warn "$spec: flipped active → stale (drift: $drift_file modified after spec's last commit $spec_last_commit)"
+    ((drift_flipped++)) || true
+  else
+    ((no_drift_count++)) || true
+  fi
+done < <(grep -E '^\|.*\.spec' "$REGISTER" 2>/dev/null || true)
+
+if [ "$drift_flipped" -eq 0 ]; then
+  if [ "$no_drift_count" -gt 0 ]; then
+    ok "No drift detected across $no_drift_count active spec(s)"
+  else
+    info "No active specs to check"
+  fi
+fi
+
+# ── Check 8: Plan files missing Tests section ────────────────────────
+
+header "Check 8: Plan files — Tests section"
 
 PLANS_DIR="$PROJECT_DIR/docs/plans"
 if [ ! -d "$PLANS_DIR" ]; then

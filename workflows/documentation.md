@@ -40,7 +40,7 @@ Ensure a GitHub issue exists if the change is non-trivial. Trivial fixes (typos,
 Edit the documentation files directly.
 
 **Adapts when:**
-- Changing a spec → ensure the spec's status is appropriate (don't modify `implemented` specs without setting `revision-needed`)
+- Changing a spec's HUMAN sections (Purpose, Behaviour) → on next `/consolidate` or `/health-check`, status will reflect any drift (`active` if reconciled, `stale` if drift detected)
 - Adding a new governed doc → copy from `docs/templates/spec.md` for specs, or `docs/templates/` for other document types
 - Updating CLAUDE.md → changes affect AI behaviour, review carefully
 - Updating public-facing docs (README.public.md, CLAUDE.public.md) → remember these sync to the public repo

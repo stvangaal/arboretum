@@ -29,3 +29,9 @@ Don't build skills, tools, or processes that the ecosystem already provides. Arb
 ## 7. Learn from each cycle
 
 After shipping a change, capture what surprised you — what the AI got wrong, what the spec missed, what worked unexpectedly well. Domain expertise grows fastest when you reflect while context is fresh.
+
+---
+
+## Two-path governance
+
+Arboretum supports two paths to a governed spec: **Path A (spec-first)** writes the governed spec before the code; **Path B (design-first)** writes a design spec, builds the code, then runs `/consolidate` to produce the governed spec from built state. Both paths land at the same end state — every PR has an owning governed spec at status `active`. The cross-path invariants are stated centrally in `workflows/README.md ## Cross-path invariants`; this principle does not duplicate them.

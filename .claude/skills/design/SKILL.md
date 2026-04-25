@@ -19,6 +19,19 @@ Orchestrates the transition from idea to implementable governed spec. This is a 
 
 ## Procedure
 
+### Step 0: Determine path — A or B?
+
+Ask the user (or determine from context) which governance path applies:
+
+- **Path A (spec-first):** the user knows what they want to build. Output is the governed spec at `docs/specs/<topic>.spec.md`, status `draft`. After approval the workflow goes to `/consolidate` (which here just creates the governed spec from the design discussion), then plan, then build.
+- **Path B (design-first):** the user is exploring or the design is still emerging. Output is the design spec at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`. The governed spec is created later by `/consolidate` after build.
+
+The handoffs differ:
+- **Path A handoff:** design discussion → `/consolidate` to create governed spec at status `draft` → plan → build → `/consolidate` (regenerate; status flips to `active`) → `/finish`.
+- **Path B handoff:** design spec written → plan → build → `/consolidate` (creates governed spec at name = design topic, status `active`) → `/finish`.
+
+Default to Path A unless the user explicitly says they want to explore.
+
 ### Step 1: Check for existing design work
 
 If `$ARGUMENTS` is provided, treat it as a path to an existing superpowers design spec:
@@ -67,16 +80,16 @@ Run `/consolidate` with the design spec path:
    - Harvest content from the design spec
    - Create or update governed specs in `docs/specs/`
    - Update the register
-   - Offer to promote specs to `in-progress`
-   - Delete the consumed design spec
+   - Set status based on workflow stage: Path A pre-build consolidation creates the governed spec at `draft` (no code yet); Path B post-build reconciliation against existing code auto-flips `draft → active` when consolidation succeeds (no separate promotion step)
+   - **Retain** the design spec — it is a permanent historical record
 
 3. After consolidation completes, confirm the result:
-> "Governed spec created: `docs/specs/<name>.spec.md` (status: in-progress).
+> "Governed spec created: `docs/specs/<name>.spec.md` (status: `draft` for Path A pre-build, or `active` for Path B post-build).
 > Ready to plan the implementation?"
 
 ### Step 4: Transition to planning
 
-Once the governed spec exists and is `in-progress`:
+Once the governed spec exists:
 
 1. Suggest: "The spec is ready. Want to create an implementation plan?"
 2. If yes, invoke the **plan** capability (currently provided by `superpowers:writing-plans`), using the governed spec as input — not the design spec. If the provider is not available, create the plan directly following the project's plan template.

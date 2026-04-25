@@ -25,7 +25,7 @@ You don't need to understand every skill or hook. You need to understand specs (
 **Checking that Claude is following the process:**
 
 - Every source file should have an `# owner: <spec-name>` comment — if files are missing this, ask Claude to run `/health-check`
-- Specs should move through statuses: `draft` → `ready` → `in-progress` → `implemented` — if a spec is stuck, ask why
+- Specs have one of three statuses: `draft` (being authored), `active` (matches current code), or `stale` (drift detected). Transitions are automatic via `/consolidate` and `/health-check` — no manual promotion step.
 - PRs should reference specs and include health-check results — if they don't, the `/pr` skill wasn't used
 
 **Key artifacts to review:**
@@ -72,7 +72,7 @@ documentation    /start → branch → edit → verify refs → /pr → /cleanup
 
 **Workflow:** `/start`, `/design`, `/finish`, `/cleanup`, `/reflect`
 
-**Governance:** `/consolidate`, `/init-project`, `/architect`, `/pr`, `/promote-spec`, `/publish`
+**Governance:** `/consolidate`, `/init-project`, `/architect`, `/pr`, `/publish`
 
 **Diagnostics:** `/health-check`
 
@@ -91,9 +91,18 @@ Arboretum defines abstract capabilities that workflows need. Each has a current 
 | Build (parallel) | `superpowers:subagent-driven-development` | Build (alternative) |
 | Debug | `superpowers:systematic-debugging` | Investigation |
 
+## Two-Path Governance
+
+Arboretum supports two paths to a governed spec:
+
+- **Path A (spec-first):** governed spec (status `draft` → `active`) → tests + code → PR.
+- **Path B (design-first):** brainstorm → design spec (`docs/superpowers/specs/`) → plan → tests → code → `/consolidate` → governed spec (status `draft` → `active`) → PR.
+
+Both paths land at the same end state: every PR has an owning governed spec at status `active`. The cross-path invariants are stated centrally in `workflows/README.md ## Cross-path invariants` — those rules hold regardless of which path is taken.
+
 ## Development Rules
 
-- **Spec-first gate:** Do not modify source files unless implementing a spec with status `in-progress`. If asked for a code change directly, identify the owning spec, offer to update the spec, and wait for approval.
+- **Spec-first gate:** Code modification is allowed when the changed files' `# owner:` headers point to a recognized topic — either an existing governed spec at `docs/specs/<topic>.spec.md` (status `draft` or `active`) or an in-flight design spec at `docs/superpowers/specs/*-<topic>-design.md` (Path B). On Path A the governed spec exists before the code; on Path B the design spec is the in-flight authority and `/consolidate` materializes the governed spec at the same topic name before PR.
 - **Ownership:** Every source file includes `# owner: <spec-name>` as its first comment line.
 - **Permitted without spec change:** implementation-detail refactoring (preserves behaviour, tests pass), patch fixes (code didn't match spec), supplementary test additions.
 

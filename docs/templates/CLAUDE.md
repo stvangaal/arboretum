@@ -2,8 +2,6 @@
 version: 1
 ---
 
-<!-- template: customize for your project -->
-
 # CLAUDE.md
 
 ## Project Overview
@@ -26,7 +24,7 @@ This project uses arboretum workflows. See `workflows/README.md` for details.
 
 ### Development rules
 
-- **Spec-first gate:** Do not modify source files unless implementing a spec with status `in-progress`. If asked for a code change directly, identify the owning spec, offer to update the spec, and wait for approval.
+- **Spec-first gate:** Code modification is allowed when files' `# owner:` headers point to a topic with either an existing governed spec at `docs/specs/<topic>.spec.md` (status `draft` or `active`) or an in-flight design spec at `docs/superpowers/specs/*-<topic>-design.md` (Path B; the governed spec will be created by `/consolidate` before PR). The state machine has three states (`draft / active / stale`); transitions are automatic via `/consolidate` and `/health-check`.
 - **Ownership:** Every source file includes `# owner: <spec-name>` as its first comment line.
 - **Permitted without spec change:** implementation-detail refactoring (preserves behaviour, tests pass), patch fixes (code didn't match spec), supplementary test additions.
 - **Draft mode:** During early development when documents are `draft`, note ambiguities and continue rather than stopping. Stop only for contradictions or infeasibility.
@@ -53,7 +51,7 @@ Tests are tiered: unit (always) → contract (when shared definitions exist) →
 
 **Workflow:** `/start`, `/design`, `/finish`, `/cleanup`, `/reflect`
 
-**Governance:** `/consolidate`, `/promote-spec`, `/pr`, `/publish`
+**Governance:** `/consolidate`, `/pr`, `/publish`
 
 **Diagnostics:** `/health-check`
 

@@ -1,6 +1,6 @@
 ---
 name: finish
-description: Complete implementation work — verify, promote spec to implemented, and create a pull request. Use when implementation is done and you're ready to ship.
+description: Complete implementation work — verify, reconcile spec status to active via /consolidate if needed, and create a pull request. Use when implementation is done and you're ready to ship.
 disable-model-invocation: false
 allowed-tools: Bash, Read, Edit, Grep, Glob
 layer: 0
@@ -53,11 +53,12 @@ Present:
 
 | Spec | Current Status | Action needed |
 |------|---------------|---------------|
-| <name> | in-progress | Promote to implemented |
-| <name> | draft | Still in draft — promote? |
+| <name> | draft | Run `/consolidate` to reconcile to `active` |
+| <name> | stale | Run `/consolidate` to reconcile drift |
+| <name> | active | OK — no action needed |
 ```
 
-If any specs are still `draft` or `ready`, flag this — they should be `in-progress` or `implemented` before creating a PR.
+If any specs are still `draft` or `stale`, flag this — they should be at `active` before creating a PR. `/consolidate` reconciles `draft → active` (or `stale → active`).
 
 ### Step 3: Run health check
 
@@ -70,21 +71,18 @@ bash scripts/health-check.sh "$(git rev-parse --show-toplevel)" 2>&1
 Present results. If issues are found:
 > "Health check found issues. Fix these before creating the PR? Or proceed anyway?"
 
-### Step 4: Promote specs
+### Step 4: Reconcile specs to `active` via `/consolidate`
 
-For each spec that should be promoted to `implemented`:
+For each spec affected by this branch, ensure its status is `active` (matches current code). Under the simplified state machine, status flips happen automatically:
 
-1. Run the promotion gate checks from `/promote-spec`:
-   - All owned files exist on disk
-   - No health check drift for this spec's files
-   - Ask: "Do all tests pass for this spec?"
-   - Ask: "Has the register been updated with final file ownership?"
+- `/consolidate` flips `draft` → `active` when reconciliation succeeds.
+- `/health-check` flips `active` → `stale` when drift is detected.
 
-2. If gates pass, update the spec status to `implemented` and update the register.
+**If any affected spec is at `draft` or `stale`**, automatically invoke `/consolidate` to reconcile. `/consolidate` will run its normal interactive flow (presenting reconciliation plans for approval, regenerating AUTO sections, harvesting decisions). Don't ask the user whether to run it — running `/consolidate` is the mechanism by which `/finish` honors its name.
 
-3. If any gates fail, report which ones and ask the user how to proceed.
+If all affected specs are already at `active`, this step is a no-op (skip silently).
 
-Skip this step if there are no specs to promote (e.g., documentation-only changes).
+Skip this step entirely for documentation-only changes (no source files in the diff).
 
 ### Step 5: Security review (if applicable)
 
@@ -116,9 +114,9 @@ After the PR is created:
 
 ## Important
 
-- This skill orchestrates existing skills (`/promote-spec` logic, `/security-review`, `/pr`). It doesn't duplicate their internals — it calls them in the right order.
+- This skill orchestrates existing skills (`/consolidate`, `/security-review`, `/pr`). It doesn't duplicate their internals — it calls them in the right order.
 - Steps are sequential and each depends on the previous one. Don't skip ahead.
-- If the user wants to create a PR without promoting specs or running health checks, let them — this is guidance, not a gate. But note what was skipped.
-- For documentation-only branches (no source code changes), skip spec promotion and security review — go straight to health check and PR.
+- If the user wants to create a PR without reconciling spec status via `/consolidate` or running health checks, let them — this is guidance, not a gate. But note what was skipped.
+- For documentation-only branches (no source code changes), there is typically no spec-status reconciliation needed; skip security review and go straight to health check and PR.
 
 $ARGUMENTS

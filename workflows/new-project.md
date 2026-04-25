@@ -56,10 +56,10 @@ After each cycle, ask:
 
 ### 4. Build
 
-Once specs are solid, implementation follows the feature workflow per-spec: promote a spec to `in-progress`, plan, implement with TDD, finish.
+Once specs are solid, implementation follows the feature workflow per-spec: plan, implement with TDD, finish. The spec status auto-flips `draft` → `active` via `/consolidate` after build.
 
 **Skills:** `superpowers:writing-plans`, `superpowers:test-driven-development`, `superpowers:executing-plans`
-**For each spec:** `/promote-spec` (to `in-progress`) → plan → build → `/finish`
+**For each spec:** plan → build → `/finish`
 
 ## Exit criteria
 

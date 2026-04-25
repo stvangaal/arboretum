@@ -1,15 +1,21 @@
 ---
 name: consolidate
-description: Formalize your code into specs — scan branch changes, group by responsibility, generate governed specs
+description: Reconcile a branch's code with its governed specs — regenerate AUTO sections, preserve HUMAN sections (stale-flagging broken refs), append harvested decisions from design specs and plans
 disable-model-invocation: false
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
-argument-hint: "[path/to/superpowers-spec.md]"
+argument-hint: "[path/to/design-spec.md]"
 layer: 0
 ---
 
 # Consolidate
 
-Formalize code on the current branch into governed specs. Scans changed and new files, groups them by responsibility, and generates minimal spec files with ownership populated — turning exploratory code into spec-governed code.
+Reconcile the branch with its governance. For each governed spec touched by this branch:
+
+- **AUTO sections** (frontmatter, status, Tests, Implementation Notes → Design record) regenerate silently from current code, tests, and citation files.
+- **HUMAN sections** (Purpose, Behaviour, free-text Implementation Notes) are preserved. v1 stale detection scans for file-path-token references that no longer exist on disk; any matches are surfaced to the user for review. (Function-name and test-case detection are deferred — see issue #108.)
+- **APPEND-AUTO sections** (Decisions) accumulate new rows harvested from design specs (`docs/superpowers/specs/*-design.md`) and plans (`docs/plans/*.md`) referenced by this spec. Existing rows are never modified or removed. The Source column is the idempotency key.
+
+When all reconciliation succeeds, the spec's status flips automatically: `draft → active` (first reconciliation) or `stale → active` (after drift). Design specs and plans are **retained as permanent historical records** — never deleted by this skill.
 
 ## Procedure
 
@@ -46,114 +52,76 @@ Formalize code on the current branch into governed specs. Scans changed and new 
 
    Files not matching any pattern default to **Source** (need ownership).
 
-6. Present a summary to the user:
+6. Present a summary to the user.
 
-   ```
-   ## Branch Analysis
+### Step 2: Identify design specs and plans for harvest
 
-   Branch: <branch-name> (vs <base-branch>)
-   Changed files: <count>
+1. If `$ARGUMENTS` is a path, treat it as the design spec being harvested.
 
-   ### Source files (need spec ownership): <count>
-   - <file list>
+2. Otherwise, scan `docs/superpowers/specs/*.md` for design specs and `docs/plans/*.md` for plans. Both are harvest sources for the Decisions table.
 
-   ### Governance files: <count>
-   - <file list>
+3. If governed specs being updated already cite design specs / plans in their `### Design record` subsection, those are also harvest sources (decisions accumulate over a spec's lifetime).
 
-   ### Ephemeral files: <count>
-   - <file list>
-
-   ### Config/meta files: <count>
-   - <file list>
-   ```
-
-### Step 2: Check for superpowers specs
-
-1. If the user provided a path as `$ARGUMENTS`, use that as the superpowers spec. Read it and proceed to Step 3.
-
-2. Otherwise, scan for superpowers **specs** (not plans — `docs/superpowers/plans/` files are implementation plans, not design specs, and are never harvested or deleted):
-
-   ```bash
-   ls docs/superpowers/specs/*.md 2>/dev/null
-   ```
-
-3. If no superpowers specs exist, note: "No superpowers specs found. Will analyse code changes only (Mode B)." Proceed to Step 3.
-
-4. If superpowers specs exist, present them to the user:
-
-   ```
-   ## Superpowers Specs Found
-
-   These design specs may contain content to harvest into governed specs:
-
-   1. `docs/superpowers/specs/<file1>.md` — <first heading from file>
-   2. `docs/superpowers/specs/<file2>.md` — <first heading from file>
-   ...
-   N. None of these — proceed without harvesting
-
-   Which specs are relevant to this branch? (comma-separated numbers, or N for none)
-   ```
-
-5. Read the selected superpowers specs in full. Note their content sections for harvesting in Step 5.
+4. Present the list of harvest sources to the user. They are **not deleted** after harvest — they are permanent records.
 
 ### Step 3: Check existing governance state
 
-1. Check if required templates exist:
+1. Verify required template:
 
    ```bash
-   ls docs/templates/spec-minimal.md docs/templates/spec-full.md docs/templates/register.md 2>/dev/null
+   ls docs/templates/spec.md docs/templates/register.md 2>/dev/null
    ```
 
-   If either spec template or the register template is missing, error: "Required template missing: `docs/templates/<name>.md`. Cannot proceed." Stop.
+   If either is missing, error: "Required template missing: `docs/templates/<name>.md`. Cannot proceed." Stop.
 
-2. Check if `docs/REGISTER.md` exists:
-   - If yes: read it. Build a map of file → owning spec from the "Spec Index" table's "Owns (files/directories)" column.
-   - If no: note "REGISTER.md not found — will bootstrap from template."
+2. Check `docs/REGISTER.md`:
+   - If yes: read it. Build a map of file → owning spec from the "Spec Index" table's "Owns" column.
+   - If no: bootstrap from `docs/templates/register.md`.
 
-3. Check if `docs/specs/` directory exists:
+3. Check `docs/specs/`:
    - If yes: read existing governed specs to understand current coverage.
-   - If no: note "docs/specs/ not found — will create."
+   - If no: create it.
 
-4. Cross-reference the **source files** from Step 1 against the register map:
-   - **Owned + changed** — file has a spec owner, but the spec may need updating. Read the owning spec.
-   - **Unowned** — file has no spec owner (needs assignment to a new or existing spec).
-
-   Note: Even if all files are owned, proceed to Step 4 — the reconciliation plan may still identify spec updates needed or superpowers specs to harvest. The idempotency exit ("Nothing to consolidate") happens naturally in Step 4 when the plan is empty.
+4. Cross-reference source files from Step 1 against the register map:
+   - **Owned + changed** — file has a spec owner; the spec needs reconciliation. Read the owning spec.
+   - **Unowned** — file has no spec owner; needs assignment to a new or existing spec.
 
 ### Step 4: Propose reconciliation plan
 
-Present a structured reconciliation plan to the user. Group source files into proposed governed specs using the spec sizing criteria from `workflows/README.md`: single reason to change, files that always change together, cohesive responsibility. When in doubt, propose groupings and let the user adjust.
+Present a structured reconciliation plan to the user:
 
-    ## Reconciliation Plan
+```
+## Reconciliation Plan
 
-    ### Bootstrapping required
-    <!-- Only show if needed -->
-    - [ ] Create `docs/REGISTER.md` from template
-    - [ ] Create `docs/specs/` directory
+### Bootstrapping required
+- [ ] Create `docs/REGISTER.md` from template (only if absent)
+- [ ] Create `docs/specs/` directory (only if absent)
 
-    ### New governed specs to create
-    <!-- For each group of unowned files -->
-    - `docs/specs/<proposed-name>.spec.md`
-      - Would own: `<file1>`, `<file2>`, ...
-      - Content source: harvested from `<superpowers-spec>` / code analysis only
-      - Status: draft
+### New governed specs to create
+- `docs/specs/<proposed-name>.spec.md`
+  - Would own: <file1>, <file2>, ...
+  - Status on creation: `active` if code already exists for the listed owns, otherwise `draft`
+  - Content source: harvest from `<design-spec-path>` (if provided) or code analysis only
 
-    ### Governed specs to update
-    <!-- For each owned+changed file whose spec needs changes -->
-    - `docs/specs/<existing-name>.spec.md` — owns `<changed-file>`
-      - Changes needed: [summary of what changed and how the spec should reflect it]
-      - Status transition: implemented → revision-needed (if applicable)
+### Governed specs to reconcile (already exist; touched by this branch)
+- `docs/specs/<existing-name>.spec.md` — owns `<changed-file>`
+  - AUTO regenerate: frontmatter, Tests, Design record
+  - HUMAN scan: Purpose, Behaviour, free-text Implementation Notes
+  - Decisions to append: <count> new rows from design specs / plans
 
-    ### Superpowers specs to consume
-    <!-- For each selected superpowers spec -->
-    - `docs/superpowers/specs/<file>.md` → delete after harvest
+### Design specs and plans to harvest decisions from
+- `docs/superpowers/specs/<file>.md` (retained, not deleted)
+- `docs/plans/<file>.md` (retained, not deleted)
 
-    ### Files not requiring spec ownership
-    - <config/meta/governance/ephemeral files>
+### # owner: header rewrites needed (Path B grouping reconciliation)
+<!-- Only show if final grouping differs from headers committed in source files. -->
+- `<source-file>`: `# owner: <old-name>` → `# owner: <new-name>`
 
-When grouping files, assign test files (`tests/**`) to the same spec as the source files they test.
+### Files not requiring spec ownership
+- <config/meta/governance/ephemeral files>
+```
 
-Ask the user: "Does this plan look right? You can adjust groupings, rename proposed specs, or exclude files."
+When grouping files, follow `workflows/README.md ## Spec sizing`. Test files belong with the source files they test.
 
 Wait for user approval before proceeding.
 
@@ -161,109 +129,156 @@ Wait for user approval before proceeding.
 
 #### 5a. Bootstrap (if needed)
 
-1. If `docs/specs/` does not exist, create it.
-2. If `docs/REGISTER.md` does not exist, read `docs/templates/register.md` and create `docs/REGISTER.md` from it. The tables will be populated as specs are created below.
+If `docs/specs/` does not exist, create it. If `docs/REGISTER.md` does not exist, create it from `docs/templates/register.md`.
 
 #### 5b. Create new governed specs
 
-For each new governed spec in the approved plan:
+For each new spec in the approved plan:
 
-1. Read `docs/templates/spec-full.md` for the template structure (use `spec-minimal.md` for standalone specs without shared definitions or cross-spec dependencies).
+1. Read `docs/templates/spec.md` for the structure.
 
-2. **If a superpowers spec is being harvested** (transplanting human-authored material, not inventing):
-   - **Status:** `draft`
-   - **Purpose** ← extract from the superpowers spec's problem statement / purpose section
-   - **Behaviour** ← extract from deliverable specs, procedure sections, design notes. This preserves human authorship from the superpowers spec.
-   - **Decisions** ← extract design principles and tradeoffs
-   - **Tests** ← extract test specifications or acceptance criteria
-   - **Requires/Provides** ← derive from the Behaviour section + any referenced definitions
+2. Determine status:
+   - If owned files already exist on disk and there's evidence the code matches the spec's intended behaviour (Path B post-build): `active`.
+   - Otherwise (Path A pre-build, or pre-implementation draft): `draft`.
 
-3. **If no superpowers spec** (code-analysis-only mode):
-   - **Status:** `draft`
-   - **Purpose** ← factual summary derived from reading the source files
-   - **Behaviour** ← `<!-- TODO: Human must write Behaviour for this spec -->`. Do NOT generate Behaviour from code — per the collaborative authoring model, Behaviour is human-authored.
-   - **Requires/Provides** ← derive from code imports/exports
-   - **Tests** ← stub sections
+3. Populate sections:
+   - **Purpose** — if a design spec is provided, harvest from its problem statement. Otherwise stub: `<!-- HUMAN — Why does this exist? -->`
+   - **Behaviour** — if a design spec is provided, harvest from its deliverable spec / procedure. Otherwise stub: `<!-- HUMAN — What should the system do? -->` Per the collaborative authoring model, do NOT generate Behaviour from code in code-analysis-only mode.
+   - **Tests** (AUTO) — list each test file under owns by name with tier; declare "N/A — [reason]" for inapplicable tiers.
+   - **Implementation Notes → Design record** (AUTO) — citation list of design specs and plans referenced by this spec.
+   - **Decisions** (APPEND-AUTO) — initial row(s) harvested from referenced design specs / plans (see Decision harvest below).
 
-4. Present the drafted spec to the user for review. Wait for approval before writing to disk.
+4. Present the drafted spec to the user. Wait for approval before writing.
 
 5. Write the spec to `docs/specs/<name>.spec.md`.
 
-#### 5c. Update existing governed specs
+#### 5c. Reconcile existing governed specs (regeneration)
 
-For each existing governed spec to update:
+For each existing spec touched by this branch:
 
 1. Read the current spec.
-2. If the spec is at `implemented` status, propose transitioning it to `revision-needed` and invoke `/promote-spec <name>` inline to handle the transition. This keeps the governance state consistent within a single flow rather than requiring the user to remember a follow-up step.
-3. Identify sections that need updating based on what changed in the code and in any harvested superpowers spec content.
-4. Propose specific edits and present to the user.
-5. Apply approved edits.
+
+2. **Regenerate AUTO sections** silently:
+   - Frontmatter (name, owner, owns) — recompute from REGISTER and current code.
+   - Status — see Step 5e (auto-flip rules below).
+   - Tests — re-derive from current test files.
+   - Implementation Notes → Design record — rebuild citation list from referenced design specs and plans.
+
+3. **Scan HUMAN sections** (Purpose, Behaviour, free-text Implementation Notes) for stale references. See "Stale reference detection" below. For each section that has stale flags, prompt the user.
+
+4. **Harvest decisions** from referenced design specs and plans into the Decisions table. See "Decision harvest" below.
+
+5. Present diff of all changes to the user. Wait for approval before writing.
 
 #### 5d. Update REGISTER.md
 
-1. Add entries for each new spec to the "Spec Index" table:
-   - Spec name, phase, status (`draft`), owned files/directories, dependencies
-2. Update entries for any existing specs whose owned files changed.
-3. Check the "Definitions Index" — update if new specs reference definitions.
+1. Add/update entries for each new or reconciled spec in the "Spec Index" table.
+2. Update the "Definitions Index" if new specs reference definitions.
+3. Update the "Dependency Resolution Order" if dependencies changed.
 
-#### 5e. Update contracts.yaml
+#### 5e. Auto-flip status
 
-1. If `contracts.yaml` exists and new specs reference shared definitions, add version pins.
-2. If `contracts.yaml` does not exist or is empty, skip and note: "contracts.yaml not updated — no shared definitions referenced (or file not found)."
+Per the simplified state machine (`draft / active / stale`):
 
-#### 5f. Delete consumed superpowers specs
+- A spec at `draft` whose reconciliation succeeded with code present → flip to `active`.
+- A spec at `stale` whose reconciliation resolved the drift → flip to `active`.
+- A spec at `active` with no detected drift → leave at `active` (no-op).
+- A spec at `draft` with no code yet → leave at `draft` (no-op).
 
-1. For each superpowers spec that was successfully harvested into governed specs:
-   ```bash
-   rm docs/superpowers/specs/<consumed-file>.md
-   ```
-2. Note each deletion in the output.
+No prompts. The flip happens automatically as part of writing the reconciled spec.
 
-#### 5g. Promote specs to in-progress
+#### 5f. Update contracts.yaml
 
-For each spec that was created or updated in this consolidation:
+If `contracts.yaml` exists and new specs reference shared definitions, add version pins. Otherwise skip.
 
-1. Ask the user: "These specs are ready for implementation. Promote to `in-progress`?"
-   - List each spec with its current status
-2. If the user confirms (for all or a subset):
-   - Update the `## Status` line in each confirmed spec to `in-progress`
-   - Update the status column in `docs/REGISTER.md` for each confirmed spec
-3. If the user declines, leave specs at their current status and note: "Specs left at current status. Run `/promote-spec <name>` when ready to implement."
+#### 5g. # owner: header rewriting (Path B grouping reconciliation)
 
-This absorbs the promote step so users don't need to remember a separate `/promote-spec` invocation after consolidation.
+If the approved reconciliation plan included header rewrites (because final grouping differs from what files committed to):
+
+1. For each affected source file: edit the first comment line in place (`# owner: <new-name>`).
+2. Update the corresponding `Owns` cell in REGISTER.md (already done in 5d, but verify).
 
 ### Step 6: Verify
 
-1. Run `/health-check` to verify governance is clean.
-2. Present the health check results.
+1. Run `scripts/health-check.sh`.
+2. Present results.
 3. Summarise what was done:
 
-       ## Consolidation Complete
+   ```
+   ## Consolidation Complete
 
-       ### Created
-       - <new spec files>
-       - <REGISTER.md if bootstrapped>
+   ### Created
+   - <new spec files>
+   - <REGISTER.md if bootstrapped>
 
-       ### Updated
-       - <modified spec files>
-       - <REGISTER.md entries>
-       - <contracts.yaml if updated>
+   ### Reconciled
+   - <spec> — AUTO regenerated; HUMAN unchanged; <N> decisions appended; status: <new>
+   - <spec> — AUTO regenerated; <N> HUMAN sections stale-flagged; status: <new>
 
-       ### Deleted
-       - <consumed superpowers specs>
+   ### Retained (no deletion)
+   - <design specs and plans referenced>
 
-       ### Promoted
-       - <specs promoted to in-progress, if any>
+   ### Header rewrites
+   - <files whose # owner: was rewritten>
 
-       ### Health Check
-       <pass/fail summary>
+   ### Health Check
+   <pass/fail summary>
+   ```
+
+## Regeneration model
+
+The governed spec is regenerated on each pass to reflect current code, while preserving human-authored content and accumulating decision history.
+
+Sections are classified by authorship:
+
+- **AUTO** — frontmatter, status, Tests, Implementation Notes → Design record subsection. Regenerated silently from current code/tests/citations on every pass.
+- **HUMAN** — Purpose, Behaviour, free-text Implementation Notes. Never overwritten. Scanned for stale references; flagged matches prompt the user.
+- **APPEND-AUTO** — Decisions. New rows harvested from design specs and plans referenced by this spec. Existing rows are never modified or removed. The Source column is the idempotency key — `/consolidate` does not re-add a decision whose source artifact + decision ID is already cited.
+
+## Stale reference detection (HUMAN sections)
+
+For each HUMAN section in an existing spec being regenerated:
+
+1. Extract candidate references via regex:
+   - Backtick-wrapped paths: `` `docs/foo.md` `` matches `docs/foo.md`.
+   - Naked path tokens matching `(\.?\w[\w./-]*\.\w+)`.
+2. For each candidate, check `[ -e "$candidate" ]` (file exists).
+3. If any references are missing, the section is "stale-flagged":
+   - Print: "Stale references in `<spec-file>` § `<section-name>`: `<missing-refs>`"
+   - Prompt: "Review the section now? (y / n / skip)"
+   - On `y`: present the section for inline edit.
+   - On `n` / `skip`: leave unchanged but record the flag for the consolidation summary.
+
+Function-name and test-case stale detection is out of scope for v1 (see issue tracker for the richer guided-reconciliation flow).
+
+## Decision harvest from design specs and plans
+
+For each design spec or plan referenced in the spec's `### Design record` subsection:
+
+1. Read the file.
+2. Extract decision-shaped content: tables with "Decision" / "Alternatives" columns, or numbered "Decision summary" lists.
+3. For each decision found, check whether a matching row already exists in the spec's Decisions table — match by `Source artifact path + decision ID`.
+4. If no match, append a new row with `Source = "<artifact-path> (decision <ID>)"`.
+
+Idempotency: re-running `/consolidate` with no new design specs / plans produces zero new rows.
+
+## # owner: header rewriting (Path B grouping reconciliation)
+
+Path B source files commit to a `# owner:` value matching the design-spec topic. If `/consolidate` decides at execution time to group files into a different spec name (per cohesion criteria), it must rewrite the headers and the REGISTER.md entry.
+
+Procedure:
+
+1. After deciding on the final grouping (Step 4 reconciliation plan), compare each source file's current `# owner:` value to its assigned spec name.
+2. For each mismatch: edit the file's first comment line in place (`# owner: <new-spec-name>`).
+3. Update the corresponding `Owns` cell in REGISTER.md.
+4. Confirm with the user before applying — header rewrites are visible commits and the user may prefer to keep the original grouping.
 
 ## Important Notes
 
 - **Never auto-commit.** All changes to governed documents require user approval before writing to disk. Present drafts and proposed edits, then wait for confirmation.
-- **Respect collaborative authoring.** When harvesting from superpowers specs, transplant human-authored content. When no superpowers spec exists, stub Behaviour for the human to write — do not generate it from code.
-- **Follow existing patterns.** Use `docs/templates/spec-full.md` as the template for new specs that have shared definitions or cross-spec dependencies, or `docs/templates/spec-minimal.md` for standalone specs. Follow the register table format from `docs/templates/register.md`.
-- **Graceful degradation.** If `contracts.yaml` is missing or empty, skip version pin updates. If `ARCHITECTURE.md` is missing, skip — do not create it.
-- **Idempotency.** Running this skill twice on the same branch should be safe. If all files are already owned and specs are up-to-date, exit early.
+- **Design specs and plans are permanent records.** Never delete them. They are cited from the governed spec's Design record subsection and harvested for decisions.
+- **Respect collaborative authoring.** When harvesting from design specs, transplant human-authored content. When no design spec exists, stub Behaviour for the human to write — do not generate it from code.
+- **Status auto-flips.** No "promote to active" prompts. `draft → active` (or `stale → active`) happens automatically when reconciliation succeeds. The human's commitment moment is the act of running `/consolidate`.
+- **Idempotency.** Running this skill twice with no intervening code or harvest changes produces no diff. AUTO sections regenerate to the same content; HUMAN sections are unchanged; the Decisions table is unchanged because the Source column dedups already-cited decisions.
 
 $ARGUMENTS

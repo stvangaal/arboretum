@@ -68,14 +68,10 @@ git remote prune origin
 
 If `docs/REGISTER.md` exists:
 
-1. Read the register
-2. Check for specs that are `in-progress` but may now be `implemented` (if the merged PR completed their implementation)
-3. If any specs should be promoted:
-   > "These specs were in-progress on the merged branch:
-   > - `<spec-name>` — status: in-progress
-   >
-   > Should they be promoted to `implemented`?"
-4. If the user confirms, update the spec status and register
+1. Read the register.
+2. Confirm that specs touched by the merged PR are at status `active` (the new state machine: `draft / active / stale`).
+3. If any spec is still at `draft`, suggest running `/consolidate` to flip it to `active`. If any spec is at `stale`, suggest running `/consolidate` to reconcile drift.
+4. No manual promotion needed — `/consolidate` handles status flips automatically.
 
 ### Step 5: Suggest reflection
 
@@ -93,7 +89,7 @@ If the user declines, move on immediately. Do not push.
 
 - **Safe deletion only.** Use `git branch -d`, not `-D`. If the branch wasn't fully merged, something is wrong — don't force-delete.
 - **Check before deleting.** Always verify the PR was actually merged before cleaning up.
-- **Spec promotion is optional.** If the user already promoted specs via `/finish`, they'll already be `implemented`. Don't double-promote.
+- **Spec status is automatic.** The state machine has only three states (`draft / active / stale`); flips happen via `/consolidate` and `/health-check`. No manual promotion step exists.
 - This skill can be auto-invoked by Claude (via SessionStart) if it detects the user is on a branch whose PR was merged.
 
 $ARGUMENTS

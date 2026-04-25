@@ -4,9 +4,12 @@ version: 1
 
 # [Spec Name] — Implementation Plan
 
-<!-- Plans are ephemeral documents. They are useful during implementation
-     but are not governed artifacts. Once the spec reaches "implemented"
-     status, this plan is historical context only. -->
+<!-- Plans are retained as permanent historical records (not deleted by
+     /consolidate). They are not governed artifacts — they don't appear
+     in REGISTER.md or carry a status state machine — but they are cited
+     from the governed spec's "Implementation Notes → Design record"
+     subsection. After the spec reaches "active", the plan becomes
+     historical context (the spec is the current-state authority). -->
 
 **Spec:** `docs/specs/[spec-name].spec.md`
 
@@ -78,4 +81,4 @@ git commit -m "[message]"
 - [ ] All tests pass: `pytest tests/ -v`
 - [ ] Register updated with owned files
 - [ ] contracts.yaml updated (if definition pins changed)
-- [ ] Spec status set to `implemented`
+- [ ] Spec status is `active` (auto-flipped by `/consolidate`)

@@ -36,16 +36,6 @@ if [ ${#missing[@]} -gt 0 ]; then
   output+=$'\n'"    Create them in order: ARCHITECTURE.md → definitions/ → specs → REGISTER.md → contracts.yaml. See workflows/README.md."
 fi
 
-# ── Check CLAUDE.md for uncustomized template ──────────────────────────
-
-if [ -f "$PROJECT_DIR/CLAUDE.md" ]; then
-  if grep -q '<!-- template: customize for your project -->' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null; then
-    output+=$'\n'"[CLAUDE.md] Still contains template placeholders — customize for this project."
-    output+=$'\n'"  → Why: CLAUDE.md is the AI's primary context. Generic content degrades every session."
-    output+=$'\n'"    Edit the Project Overview and other placeholder sections, then remove the template marker."
-  fi
-fi
-
 # ── Parse register for spec statuses ─────────────────────────────────
 
 if [ -f "$REGISTER" ]; then
@@ -54,47 +44,35 @@ if [ -f "$REGISTER" ]; then
 
   if [ -n "$spec_lines" ]; then
     draft_count=0
-    ready_count=0
-    in_progress_count=0
-    implemented_count=0
-    revision_count=0
-    in_progress_specs=""
-    revision_specs=""
-    ready_specs=""
+    active_count=0
+    stale_count=0
+    stale_specs=""
+    draft_specs=""
 
     while IFS='|' read -r _ spec status _ _; do
       spec=$(echo "$spec" | xargs)
       status=$(echo "$status" | xargs)
       case "$status" in
-        draft) ((draft_count += 1)) || true ;;
-        ready)
-          ((ready_count += 1)) || true
-          ready_specs+="$spec, "
+        draft)
+          ((draft_count += 1)) || true
+          draft_specs+="$spec, "
           ;;
-        in-progress)
-          ((in_progress_count += 1)) || true
-          in_progress_specs+="$spec, "
-          ;;
-        implemented) ((implemented_count += 1)) || true ;;
-        revision-needed)
-          ((revision_count += 1)) || true
-          revision_specs+="$spec, "
+        active) ((active_count += 1)) || true ;;
+        stale)
+          ((stale_count += 1)) || true
+          stale_specs+="$spec, "
           ;;
       esac
     done <<< "$spec_lines"
 
-    output+=$'\n'"[Spec Status] "
-    output+="draft:$draft_count ready:$ready_count in-progress:$in_progress_count "
-    output+="implemented:$implemented_count revision-needed:$revision_count"
+    output+=$'\n'"[Spec Status] draft:$draft_count active:$active_count stale:$stale_count"
 
-    if [ -n "$in_progress_specs" ]; then
-      output+=$'\n'"[In Progress] ${in_progress_specs%, }"
+    if [ -n "$stale_specs" ]; then
+      output+=$'\n'"[Stale] ${stale_specs%, }"
+      output+=$'\n'"  → $stale_count spec(s) stale — run /consolidate to reconcile or /health-check for details."
     fi
-    if [ -n "$revision_specs" ]; then
-      output+=$'\n'"[Needs Revision] ${revision_specs%, }"
-    fi
-    if [ -n "$ready_specs" ]; then
-      output+=$'\n'"[Ready to Implement] ${ready_specs%, }"
+    if [ -n "$draft_specs" ]; then
+      output+=$'\n'"[Draft] ${draft_specs%, }"
     fi
   fi
 fi
@@ -114,44 +92,6 @@ if [ -f "$REGISTER" ] && [ -d "$PROJECT_DIR/docs/specs" ]; then
     output+=$'\n'"[Register] REGISTER.md may be stale — spec files are newer than the register."
     output+=$'\n'"  → Why: Stale register data causes incorrect staleness checks and ownership lookups."
     output+=$'\n'"    Run scripts/generate-register.sh to resync."
-  fi
-fi
-
-# ── Check for spec status drift (code exists but spec says draft/ready) ─
-
-if [ -f "$REGISTER" ]; then
-  drift_specs=""
-  drift_count=0
-
-  while IFS='|' read -r _ spec status owns _; do
-    spec=$(echo "$spec" | xargs)
-    status=$(echo "$status" | xargs)
-    owns=$(echo "$owns" | xargs)
-    [ -z "$spec" ] || [ -z "$owns" ] && continue
-
-    # Only check draft and ready specs
-    case "$status" in
-      draft|ready) ;;
-      *) continue ;;
-    esac
-
-    # Check if any owned file actually exists on disk
-    for pattern in $(echo "$owns" | tr ',' '\n'); do
-      pattern=$(echo "$pattern" | xargs)
-      [ -z "$pattern" ] && continue
-      [ "$pattern" = "..." ] && continue
-
-      if [ -e "$PROJECT_DIR/$pattern" ]; then
-        drift_specs+="${spec%.spec.md}, "
-        ((drift_count++)) || true
-        break
-      fi
-    done
-  done < <(grep -E '^\|.*\.spec' "$REGISTER" 2>/dev/null || true)
-
-  if [ "$drift_count" -gt 0 ]; then
-    output+=$'\n'"[Spec Drift] $drift_count specs have status draft/ready but own existing files: ${drift_specs%, }"
-    output+=$'\n'"  → Why: Code may have outpaced governance. Run /promote-spec to catch up."
   fi
 fi
 
@@ -186,40 +126,6 @@ if [ -f "$CONTRACTS" ] && [ -d "$DEFS_DIR" ]; then
     output+=$'\n'"[Stale Version Pins] Definition versions have drifted from contracts.yaml:"$'\n'"$stale"
     output+="  → Why: Implementing against stale pins risks silent drift between code and contracts."
     output+=$'\n'"    Run /health-check or scripts/sync-contracts.sh to reconcile."
-  fi
-fi
-
-# ── Check for empty contracts when definitions exist ────────────────
-
-if [ "$LAYER" -ge 1 ] && [ -f "$CONTRACTS" ] && [ -d "$DEFS_DIR" ]; then
-  def_count=$(find "$DEFS_DIR" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
-  has_pins=$(grep -cE '^\s+definitions/' "$CONTRACTS" 2>/dev/null || echo 0)
-  if [ "$def_count" -gt 0 ] && [ "$has_pins" -eq 0 ]; then
-    output+=$'\n'"[Contracts] contracts.yaml has no version pins but $def_count definitions exist."
-    if [ "$LAYER" -ge 2 ]; then
-      output+=$'\n'"  → Why: Layer 2 expects contract enforcement. Run /sync-contracts to populate, or set layer: 1."
-    else
-      output+=$'\n'"  → Why: Definition versions aren't pinned. Consider running /sync-contracts when specs declare dependencies."
-    fi
-  fi
-fi
-
-# ── Check for v0 definitions that may be ready for promotion ────────
-
-if [ "$LAYER" -ge 1 ] && [ -d "$DEFS_DIR" ]; then
-  v0_defs=""
-  v0_count=0
-  for def_file in "$DEFS_DIR"/*.md; do
-    [ -f "$def_file" ] || continue
-    version=$(grep -A1 '^## Version' "$def_file" 2>/dev/null | grep -oE 'v[0-9]+' | head -1 || true)
-    if [ "$version" = "v0" ]; then
-      v0_defs+="$(basename "$def_file" .md), "
-      ((v0_count++)) || true
-    fi
-  done
-  if [ "$v0_count" -ge 3 ]; then
-    output+=$'\n'"[Definitions] $v0_count definitions at v0/draft: ${v0_defs%, }"
-    output+=$'\n'"  → Why: v0 means 'still being shaped.' If these are stable, promote to v1."
   fi
 fi
 

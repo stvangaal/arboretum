@@ -10,6 +10,12 @@ Code works but is hard to understand, maintain, or extend. You want to improve s
 - Existing tests pass (you need a baseline to prove equivalence)
 - Clear idea of what's wrong with the current structure
 
+## Path selection — A or B?
+
+Refactors are almost always **Path A** — the existing spec describes the behaviour to preserve, and the refactor changes implementation without changing behaviour. The governed spec already exists at `active`; the refactor doesn't change it (or changes only Implementation Notes).
+
+**Path B applies only** when the refactor surfaces a *new architectural concern* worth a design conversation (e.g., "splitting this module is the right move, but the new boundaries need brainstorming"). In that case, switch to a feature-style flow with a design spec.
+
 ## Diagram
 
 ```mermaid
