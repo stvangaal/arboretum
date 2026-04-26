@@ -74,15 +74,22 @@ Start simple. Add governance only when you feel the pain of not having it.
 
 ## Getting Started
 
-```bash
-# Clone arboretum (once)
-git clone https://github.com/stvangaal/arboretum.git ~/arboretum_framework
+Arboretum installs as a Claude Code plugin and scaffolds projects via the `/arboretum:init` skill — no separate `git clone` of arboretum required.
 
-# Bootstrap a new project
-~/arboretum_framework/bin/arboretum bootstrap ~/Projects/my-project
+```bash
+# In any Claude Code session, install superpowers (arboretum's required peer):
+/plugin marketplace add anthropics/claude-plugins-official
+/plugin install superpowers@anthropics-claude-plugins-official
+
+# Install arboretum:
+/plugin marketplace add stvangaal/arboretum
+/plugin install arboretum@stvangaal-arboretum
+
+# Then in any new project directory, scaffold the governed structure:
+/arboretum:init
 ```
 
-This creates a standalone project with arboretum structure. The project has no runtime dependency on arboretum — you can update it later with `./arboretum update`, but it works on its own.
+`/arboretum:init` creates `CLAUDE.md`, `PRINCIPLES.md`, `docs/`, `workflows/`, hooks, and git config; verifies `superpowers` is installed; and hands off to `/architect` for the project-shape interview. The plugin updates from upstream automatically on subsequent `/plugin install` runs — projects don't carry frozen framework copies.
 
 ## Sample Project
 
