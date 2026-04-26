@@ -1,6 +1,8 @@
 # Arboretum
 
-**An organizational framework for building software with AI code agents.**
+**Arboretum is choreography. Superpowers does the work.**
+
+An organizational framework for building software with AI code agents.
 
 Arboretum gives domain experts a repeatable way to create projects that are well-organized, maintainable, and understandable — even when the human didn't write most of the code.
 

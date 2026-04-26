@@ -1,3 +1,8 @@
+---
+name: documentation
+requires: []
+---
+
 # I need to update documentation
 
 ## When to use
@@ -24,6 +29,17 @@ graph TD
 ```
 
 ## Flow
+
+## Artifact Flow
+
+| Step | Reads | Produces | Location | Authority |
+|---|---|---|---|---|
+| 1. Capture issue (`/start`) | symptom (e.g. typo, gap) | GitHub issue (skipped for trivial fixes) | GitHub | — |
+| 2. Branch | git | `docs/<description>` branch | git | — |
+| 3. Make changes | docs | edited docs | `docs/`, `CLAUDE.md`, README, etc. | source (docs are owned) |
+| 4. Verify references | docs, register | `/health-check` report (broken refs, missing files) | (report) | — |
+| 5. Ship — `/pr` | doc diff | PR | GitHub | — |
+| 6. `/cleanup` | branch state | clean main | git | — |
 
 ### Step 1: Capture the issue
 Ensure a GitHub issue exists if the change is non-trivial. Trivial fixes (typos, broken links) can skip this.

@@ -113,5 +113,5 @@ Both paths land at the same end state: every PR has an owning governed spec at s
 | `PRINCIPLES.md` | Seven principles guiding all design decisions |
 | `workflows/` | Workflow definitions for each development scenario |
 | `docs/templates/` | Document templates used by skills |
-| `.claude/skills/` | Slash skills (Claude Code commands) |
+| `skills/` | Slash skills (Claude Code commands) |
 | `examples/rule-flow-engine/` | Fully governed sample project |

@@ -4,6 +4,8 @@ version: 1
 
 # CLAUDE.md
 
+> *Arboretum is choreography. Superpowers does the work.*
+
 ## Project Overview
 
 <!-- 2-3 sentences. What does this project do, who uses it, what's the tech stack. -->

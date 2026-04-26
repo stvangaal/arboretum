@@ -1,3 +1,9 @@
+---
+name: new-project
+requires:
+  - superpowers
+---
+
 # Workflow: New Project
 
 Start from nothing. Build understanding iteratively through architecture decisions and spike-spec cycles before writing production code.
@@ -9,10 +15,22 @@ You have an idea for a project but no code yet.
 ## Stages
 
 ```
-/init-project → /architect → [spike → /consolidate]* → build
+/arboretum:init → /architect → [spike → /consolidate]* → build
 ```
 
-### 1. Bootstrap — `/init-project`
+(Pre-plugin projects use `/init-project` in place of `/arboretum:init`; both produce the same scaffolding.)
+
+## Artifact Flow
+
+| Step | Reads | Produces | Location | Authority |
+|---|---|---|---|---|
+| 1. `/arboretum:init` | (empty dir), plugin templates | scaffolded project: `CLAUDE.md`, `docs/`, `workflows/`, hooks, configs | new project root | source |
+| 2. `/architect` | user interview answers, principles | `ARCHITECTURE.md`, optional group docs, archetype match | `docs/ARCHITECTURE.md` | owning |
+| 3a. Spike (per uncertainty) | architecture, problem space | working throwaway code | `spikes/` or branch | (throwaway) |
+| 3b. `/consolidate` | spike outcome | governed spec at `draft` | `docs/specs/` | owning |
+| 4. Build (per spec) | spec, plan | code + tests; `/finish` runs `/consolidate` to flip spec to `active` | source dirs, `docs/specs/` | source / owning |
+
+### 1. Bootstrap — `/arboretum:init`
 
 Create the project directory with arboretum structure. Sets up `CLAUDE.md`, hooks, skills, templates, and an empty `docs/specs/` directory.
 

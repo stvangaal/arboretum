@@ -1,3 +1,9 @@
+---
+name: explore
+requires:
+  - superpowers
+---
+
 # Workflow: Explore
 
 You don't know enough to write a spec yet. Spike, learn, and either produce a spec draft or a documented decision about what not to build.
@@ -23,6 +29,15 @@ If you don't know yet, start as a spike — it's easier to graduate to Path B la
 ```
 /start → [spike → document]* → decide
 ```
+
+## Artifact Flow
+
+| Step | Reads | Produces | Location | Authority |
+|---|---|---|---|---|
+| 1. `/start` | the question, codebase | issue framed as a question (not a deliverable) | GitHub issue | — |
+| 2a. Spike | code, docs, library / API surface | throwaway working code | `spikes/` or `spike/*` branch | (throwaway — never owned) |
+| 2b. Document | spike outcome | findings (what tried / what worked / what now known / next question) | issue body or markdown file | ephemeral |
+| 3. Decide | findings | exit choice (continue / Path A / Path B / file / close) | issue + branch state | — |
 
 ### 1. Start — `/start`
 

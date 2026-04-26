@@ -1,3 +1,8 @@
+---
+name: publish
+requires: []
+---
+
 # Workflow: Publish
 
 Prepare your project for public sharing on GitHub. Review what's included, strip process artifacts, and sync to a public repo.
@@ -11,6 +16,14 @@ Your project (or a meaningful part of it) is ready for others to see, use, or co
 ```
 /publish (review → strip → sync)
 ```
+
+## Artifact Flow
+
+| Step | Reads | Produces | Location | Authority |
+|---|---|---|---|---|
+| Review | repo state, `.publishignore` | review report (what will/won't ship) | (notes) | — |
+| Strip | `.publishignore` | filtered file set | temp staging | — |
+| Sync | filtered file set | public repo update (one-way: private → public) | public repo | — |
 
 ### 1. Publish — `/publish`
 
@@ -33,7 +46,7 @@ Apply `.publishignore` to exclude process artifacts:
 - `CLAUDE.md`, `docs/ARCHITECTURE.md` — project context
 - `docs/specs/`, `docs/definitions/` — documentation
 - `src/`, `tests/` — code
-- `.claude/skills/`, `.claude/hooks/` — contributor workflow
+- `skills/`, `.claude/skills/`, `.claude/hooks/` — slash skills (plugin and project-local) and hooks
 - `.arboretum.yml` — framework config
 
 **Excluded by default:**

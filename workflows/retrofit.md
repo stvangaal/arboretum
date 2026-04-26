@@ -1,3 +1,8 @@
+---
+name: retrofit
+requires: []
+---
+
 # Workflow: Retrofit
 
 Progressively add arboretum governance to an existing codebase. You don't have to govern everything at once — start with one spec and grow.
@@ -27,6 +32,18 @@ graph TD
 ```
 
 ## Flow
+
+## Artifact Flow
+
+| Step | Reads | Produces | Location | Authority |
+|---|---|---|---|---|
+| 1. Assess | existing codebase, `git log --stat` | mental model of pain hotspots | (notes) | — |
+| 2. Bootstrap (`/init-project` or `/arboretum:init`) | empty arbo state | arboretum scaffolding alongside existing code | `docs/`, `.claude/`, `CLAUDE.md` | source |
+| 3. Triage | git history, codebase | highest-pain area selection | (notes) | — |
+| 4. Govern one | code in selected area | new spec + `# owner:` comments | `docs/specs/`, source files | owning |
+| 5. Expand | next pain area | next spec; repeat as needed | as above | as above |
+
+Once governance is established for the highest-pain areas, transitions to `feature` (new behaviour) and `bug-fix` (with spec awareness) take over for ongoing changes.
 
 ### Step 1: Assess
 

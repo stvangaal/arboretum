@@ -1,0 +1,19 @@
+{
+  "name": "arboretum",
+  "version": "0.2.0",
+  "description": "Choreography for AI-assisted software development. Defers heavy lifting to specialists like superpowers; provides governance, workflows, and templates that produce maintainable projects.",
+  "author": {
+    "name": "Stephen van Gaal",
+    "email": "svangaal@gmail.com"
+  },
+  "homepage": "https://github.com/stvangaal/arboretum",
+  "repository": "https://github.com/stvangaal/arboretum",
+  "license": "MIT",
+  "keywords": [
+    "governance",
+    "workflows",
+    "spec-driven-development",
+    "choreography",
+    "ai-assisted-development"
+  ]
+}

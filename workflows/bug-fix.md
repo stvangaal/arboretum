@@ -1,3 +1,9 @@
+---
+name: bug-fix
+requires:
+  - superpowers
+---
+
 # Workflow: Bug Fix
 
 Something doesn't work as specified. Investigate, determine whether the spec or the code is wrong, fix the right thing.
@@ -17,6 +23,18 @@ Bug fixes are almost always **Path A** — the existing spec describes the inten
 ```
 /start → investigate → classify → fix → /finish → /cleanup → /reflect
 ```
+
+## Artifact Flow
+
+| Step | Reads | Produces | Location | Authority |
+|---|---|---|---|---|
+| 1. `/start` | bug report, issue | confirmed issue with reproduction | GitHub issue | — |
+| 2. Investigate | spec, code, test failures | root-cause finding, failing test if possible | `tests/` (test) | source (test) |
+| 3. Classify | spec vs code mismatch | decision: code-fix / spec-fix / architecture | (notes) | — |
+| 4. Fix | spec (if updated), failing test | code change + passing test; spec edits if behaviour changed | source dirs, `docs/specs/` (HUMAN sections only) | source / owning (if spec touched) |
+| 5. `/finish` | code + tests + spec | reconciled spec status via `/consolidate`; PR | `docs/specs/` | owning |
+| 6. `/cleanup` | branch state | clean main | git | — |
+| 7. `/reflect` | session memory | lessons (especially: what did the spec miss?) | memory | — |
 
 ### 1. Start — `/start`
 
@@ -63,6 +81,16 @@ Fix the right thing, using TDD.
 2. Write a failing test that captures the corrected behaviour
 3. Fix the code
 4. Commit (the spec's status will reconcile via `/consolidate`/`/health-check` automatically — no manual promotion needed)
+
+#### Wrapped delegation — workflow-level TDD wrap
+
+This Fix step invokes `superpowers:test-driven-development` directly. Apply the workflow-level wrap (see `docs/ARCHITECTURE.md ## Wrapped delegation pattern` and the canonical example in `workflows/feature.md` § Build):
+
+- **Brief** — the test taxonomy from `CLAUDE.md ## Testing`; the tier choice is shaped by where the bug lives (unit for pure-function bugs, contract/integration for interaction bugs); the failing test must encode the bug's *current* misbehaviour before the fix.
+- **Capture user contributions** — ask: "Are there related cases in this area that should also have tests, to prevent the same class of bug from recurring?" Each item becomes an additional test.
+- **Verify post-fix** — the original failing test now passes; the related cases from the contribution moment have tests; no regressions in tests for nearby behaviour.
+
+Skipping the wrap risks fixing the symptom while leaving a class-of-bug regression hazard unaddressed.
 
 ### 5. Finish — `/finish`
 

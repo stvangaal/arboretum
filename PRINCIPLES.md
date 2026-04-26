@@ -2,9 +2,9 @@
 
 Arboretum is an organizational framework for AI-assisted software development. These principles guide how projects are structured when an AI agent writes most of the code and the human is a domain expert steering the work.
 
-## 1. Decide before you build
+## 1. Decide before you build, describe after you ship
 
-Write down what you want and why before any code exists. An AI agent with clear intent produces better code than one given vague instructions. The spec is the steering wheel.
+Write down what you want and why before any code exists — that intent steers the agent. Once the work is shipped, generate the owning spec from the built state, not from the plan. Plans and brainstorms reflect starting-state assumptions; specs reflect what is.
 
 ## 2. Every file has one owner
 
@@ -24,7 +24,7 @@ A 500-line project doesn't need version-pinned contracts. Start with the minimum
 
 ## 6. Use what exists
 
-Don't build skills, tools, or processes that the ecosystem already provides. Arboretum is an organizational layer. When a good external tool exists, integrate it — don't compete with it.
+Arboretum is choreography. The hard work — brainstorming, planning, TDD, debugging, code review — belongs to specialists like superpowers. Arboretum's role is to choose the score, set the tempo, hand the right brief to each performer, and ensure their outputs assemble into a governed whole. Do not reimplement what the ecosystem provides.
 
 ## 7. Learn from each cycle
 

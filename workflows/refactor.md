@@ -1,3 +1,9 @@
+---
+name: refactor
+requires:
+  - superpowers
+---
+
 # I need to restructure without changing behaviour
 
 ## When to use
@@ -36,6 +42,20 @@ graph TD
 
 ## Flow
 
+## Artifact Flow
+
+| Step | Reads | Produces | Location | Authority |
+|---|---|---|---|---|
+| 1. Capture issue (`/start`) | symptom, code | GitHub issue | GitHub | — |
+| 2. Orient | `REGISTER.md`, governed specs | which specs own affected code | (notes) | — |
+| 3. Identify scope | code | scope decision: internal / interface / cross-spec | (notes) | — |
+| 4. Test coverage | code, tests | characterization tests if missing (Path A → safety net) | `tests/` | source |
+| 5. Branch | git | `chore/<refactor>` branch | git | — |
+| 6. Restructure | code, tests | restructured code (tests still green) | source dirs | source |
+| 7. Verify | tests, code review | green-tests confirmation, review notes | (review notes) | — |
+| 8. `/finish` | code + tests + spec | reconciled spec via `/consolidate`; PR | `docs/specs/` | owning |
+| 9. `/cleanup` + `/reflect` | branch state, session memory | clean main; lessons | git, memory | — |
+
 ### Step 1: Capture the issue
 Ensure a GitHub issue exists describing what needs restructuring and why.
 → `/start` (creates issue if needed, routes to this workflow)
@@ -59,6 +79,16 @@ Before changing anything, confirm tests exist that will catch regressions.
 **Adapts when:**
 - Good test coverage exists → proceed directly
 - No tests exist → write characterisation tests first (tests that capture current behaviour)
+
+#### Wrapped delegation — workflow-level TDD wrap
+
+This workflow invokes `superpowers:test-driven-development` at three points (Step 4 to write characterization tests, Step 6 to keep them green during the refactor, and verification at Step 7). Apply the workflow-level wrap (see `docs/ARCHITECTURE.md ## Wrapped delegation pattern` and the canonical example in `workflows/feature.md` § Build), but adapted for refactor's "preserve, don't change" mode:
+
+- **Brief** — the test taxonomy from `CLAUDE.md ## Testing`; the cycle is *characterization first, refactor cycle is keep-green throughout* (not red → green → refactor); tests must capture *current* behaviour, not aspirational behaviour.
+- **Capture user contributions** — ask: "Where is the existing behaviour fragile or under-documented? Are there interactions you've debugged before that should have characterization tests before we touch this code?" Each item becomes a characterization test before Step 5's branch.
+- **Verify post-restructure** — same tests pass with same assertions (no test was loosened to accommodate the new structure); no test was added that asserts new behaviour; user-contributed fragile-area tests still hold.
+
+The "no test was loosened" check is the load-bearing one for refactors — without it, "tests pass" can mean "tests were edited to pass," which silently changes behaviour while *appearing* equivalent.
 
 ### Step 5: Create a branch
 → `git checkout -b chore/<refactor-description>`
