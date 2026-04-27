@@ -82,26 +82,55 @@ if [ ! -f "$REGISTER" ]; then
   exit 1
 fi
 
-# ── Check 1: Register owned files vs. disk ───────────────────────────
+# ── Check 2/3: Register schema detection ─────────────────────────────
+#
+# Detect REGISTER.md's Spec Index schema by inspecting the header row.
+# Current schema (emitted by generate-register.sh): | Spec | Status | Owner | Owns |
+# Legacy schema (older arboretum bootstraps):       | Spec | Status | Owns | Depends On |
+# Parsing the wrong schema produces silent garbage (Owner values read as
+# paths, etc.). When the schema isn't current, skip Check 2/3 with a
+# clear instruction to regenerate rather than emit false-positive findings.
+
+register_header=$(grep -E '^\| Spec \| Status \|' "$REGISTER" 2>/dev/null | head -1 || true)
+register_schema_compatible=false
+register_schema_message=""
+
+if [[ -z "$register_header" ]]; then
+  register_schema_message="REGISTER.md has no recognized Spec Index header"
+elif [[ "$register_header" == *"Owner"* ]]; then
+  register_schema_compatible=true
+else
+  register_schema_message="REGISTER.md uses a legacy schema (no Owner column). Run 'bash scripts/generate-register.sh' to regenerate to the current schema (Spec | Status | Owner | Owns)"
+fi
+
+# ── Check 2: Register owned files vs. disk ───────────────────────────
 
 header "Check 2: Register owned files vs. disk"
 
 # Extract owned file/directory patterns from register
-# Format: | spec.md | status | owns | depends |
+# Format produced by generate-register.sh: | spec.md | status | owner | owns |
+# Owns column entries are backtick-wrapped: `src/foo.py`, `tests/test_foo.py`.
 missing_files=()
 spec_owns_map=""
 
-while IFS='|' read -r _ spec _ owns _; do
+if [ "$register_schema_compatible" = false ]; then
+  warn "$register_schema_message — skipping Check 2"
+else
+while IFS='|' read -r _ spec _ _ owns _; do
   spec=$(echo "$spec" | xargs)
   owns=$(echo "$owns" | xargs)
   [ -z "$spec" ] || [ -z "$owns" ] && continue
 
   for pattern in $(echo "$owns" | tr ',' '\n'); do
-    pattern=$(echo "$pattern" | xargs)
+    # Strip whitespace and backticks (generate-register.sh wraps each path in
+    # backticks for markdown rendering — they must be removed for path comparison).
+    pattern=$(echo "$pattern" | xargs | tr -d '`')
     [ -z "$pattern" ] && continue
 
     # Skip ellipsis patterns like "pyproject.toml, setup.cfg, ..."
     [ "$pattern" = "..." ] && continue
+    # generate-register.sh emits — for specs with empty Owns column
+    [ "$pattern" = "—" ] && continue
 
     # Handle glob patterns
     if [[ "$pattern" == *"**"* ]]; then
@@ -123,10 +152,14 @@ while IFS='|' read -r _ spec _ owns _; do
     spec_owns_map+="$pattern:$spec"$'\n'
   done
 done < <(grep -E '^\|.*\.spec' "$REGISTER" 2>/dev/null || true)
+fi
 
 # Check for unowned source files
 header "Check 3: Unowned source files"
 
+if [ "$register_schema_compatible" = false ]; then
+  info "Skipped — REGISTER.md schema not compatible (see Check 2 message)"
+else
 unowned_count=0
 # Look for Python files in likely implementation directories
 for src_dir in src "$( basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' )" tests; do
@@ -162,6 +195,7 @@ for src_dir in src "$( basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' )" t
 done
 
 [ "$unowned_count" -eq 0 ] && ok "No unowned source files found"
+fi
 
 # ── Check 3: contracts.yaml vs. spec Requires tables ─────────────────
 
@@ -252,7 +286,11 @@ fi
 
 header "Check 6: Spec status consistency"
 
-while IFS='|' read -r _ spec status owns _; do
+if [ "$register_schema_compatible" = false ]; then
+  info "Skipped — REGISTER.md schema not compatible (see Check 2 message)"
+else
+# Read order matches the current schema: | _ | spec | status | owner | owns | _ |
+while IFS='|' read -r _ spec status _ owns _; do
   spec=$(echo "$spec" | xargs)
   status=$(echo "$status" | xargs)
   owns=$(echo "$owns" | xargs)
@@ -265,8 +303,9 @@ while IFS='|' read -r _ spec status owns _; do
       # Draft specs may or may not have code; drift detection doesn't apply
       ;;
     active)
-      # Active specs should have owned files that exist
-      if [ -z "$owns" ] || [ "$owns" = "(none)" ]; then
+      # Active specs should have owned files that exist. generate-register
+      # emits — for empty Owns, so check both empty and the em-dash sentinel.
+      if [ -z "$owns" ] || [ "$owns" = "(none)" ] || [ "$owns" = "—" ]; then
         warn "$spec: status=active but owns no files"
       fi
       ;;
@@ -285,6 +324,7 @@ while IFS='|' read -r _ spec status owns _; do
 done < <(grep -E '^\|.*\.spec' "$REGISTER" 2>/dev/null || true)
 
 ok "Status consistency check complete"
+fi
 
 # ── Check 7: Spec drift detection (auto-flip active → stale) ─────────
 
@@ -298,11 +338,19 @@ header "Check 7: Spec drift (auto-flip active → stale)"
 # This is the only mutation this script performs. All other findings are
 # advisory ("do not auto-fix"). Drift status is structurally bounded by
 # the spec status enum, so writing it is safe.
+#
+# Skipping when schema is incompatible is critical: this check MUTATES, so
+# parsing the wrong column for `owns` could cause the loop to find no drift
+# anywhere (silent no-op) or to mutate against bogus paths.
 
 drift_flipped=0
 no_drift_count=0
 
-while IFS='|' read -r _ spec status owns _; do
+if [ "$register_schema_compatible" = false ]; then
+  info "Skipped — REGISTER.md schema not compatible (see Check 2 message)"
+else
+# Read order matches the current schema: | _ | spec | status | owner | owns | _ |
+while IFS='|' read -r _ spec status _ owns _; do
   spec=$(echo "$spec" | xargs)
   status=$(echo "$status" | xargs)
   owns=$(echo "$owns" | xargs)
@@ -324,8 +372,12 @@ while IFS='|' read -r _ spec status owns _; do
   drift_file=""
 
   for pattern in $(echo "$owns" | tr ',' '\n'); do
-    pattern=$(echo "$pattern" | xargs)
+    # Strip whitespace and backticks (generate-register.sh wraps each path in
+    # backticks). Skip em-dash and ellipsis sentinels.
+    pattern=$(echo "$pattern" | xargs | tr -d '`')
     [ -z "$pattern" ] && continue
+    [ "$pattern" = "..." ] && continue
+    [ "$pattern" = "—" ] && continue
 
     # Resolve pattern to actual files
     if [[ "$pattern" == *"**"* ]]; then
@@ -393,6 +445,7 @@ if [ "$drift_flipped" -eq 0 ]; then
     info "No active specs to check"
   fi
 fi
+fi  # close: register_schema_compatible guard for Check 7
 
 # ── Check 8: Plan files missing Tests section ────────────────────────
 
