@@ -348,6 +348,17 @@ no_drift_count=0
 
 if [ "$register_schema_compatible" = false ]; then
   info "Skipped — REGISTER.md schema not compatible (see Check 2 message)"
+elif ! git -C "$PROJECT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  # Drift detection compares spec vs. owned-file commit timestamps via
+  # `git log`. Without a git working tree there is nothing to compare,
+  # and the bare `git log` calls below would exit 128 and propagate
+  # through `set -euo pipefail` to crash the whole script (see #137).
+  info "Skipped — $PROJECT_DIR is not a git working tree (drift detection requires git history)"
+elif ! git -C "$PROJECT_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
+  # An empty repo (e.g. immediately after `git init`, before the first
+  # commit) is a work tree but has no HEAD for `git log` to inspect.
+  # The substitutions below would still hit fatal: 128 — same crash.
+  info "Skipped — $PROJECT_DIR has no git history yet (drift detection requires at least one commit)"
 else
 # Read order matches the current schema: | _ | spec | status | owner | owns | _ |
 while IFS='|' read -r _ spec status _ owns _; do
