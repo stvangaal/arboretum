@@ -105,6 +105,18 @@ Invoke the `/pr` skill to create the pull request. It handles:
 
 Present the PR URL when done.
 
+### Step 6.5: Capture session handoff
+
+After the PR is created, prompt once:
+
+> "Which issue should be queued as `next-up` for the next session? (Issue number, or 'skip')"
+
+If the user gives a number, invoke `/handoff <N>`. The `/handoff` skill is the canonical writer — it manages the `next-up` GitHub label, enforces exclusivity, and refreshes the local cache. Do not call `gh` directly here.
+
+If the user declines or skips, move on silently. This step is **advisory**: never block the rest of the flow.
+
+If `gh` is missing or unauthenticated, `/handoff` will surface its own install/auth instructions and refuse — surface that error to the user and continue.
+
 ### Step 7: Suggest next steps
 
 After the PR is created:
@@ -114,7 +126,7 @@ After the PR is created:
 
 ## Important
 
-- This skill orchestrates existing skills (`/consolidate`, `/security-review`, `/pr`). It doesn't duplicate their internals — it calls them in the right order.
+- This skill orchestrates existing skills (`/consolidate`, `/security-review`, `/pr`, `/handoff`). It doesn't duplicate their internals — it calls them in the right order.
 - Steps are sequential and each depends on the previous one. Don't skip ahead.
 - If the user wants to create a PR without reconciling spec status via `/consolidate` or running health checks, let them — this is guidance, not a gate. But note what was skipped.
 - For documentation-only branches (no source code changes), there is typically no spec-status reconciliation needed; skip security review and go straight to health check and PR.

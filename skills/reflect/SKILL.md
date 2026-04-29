@@ -48,6 +48,8 @@ Ask these questions **one at a time**. Keep it conversational, not formal. Skip 
 
 3. **What should you remember for next time?** — a concrete takeaway. This could be a technique, a gotcha, a pattern, or a decision rationale that would help future-you (or someone like you) working on a similar problem.
 
+4. **Which issue should be queued as `next-up` for the next session?** — ask for an issue number (or 'skip'). If the user gives a number, invoke `/handoff <N>`. The `/handoff` skill is the canonical writer — it manages the GitHub `next-up` label and refreshes the local cache; this skill does not call `gh` directly for next-up label or cache writes (Step 1 still uses `gh pr list` for read-only context). If the user skips, move on silently.
+
 ### Step 3: Save insights
 
 If the user shared anything worth keeping, offer to save it. Two possible destinations:
@@ -81,8 +83,8 @@ Keep it brief:
 ## Important
 
 - **This is not a gate.** It's a prompt. If the user doesn't want to reflect, respect that immediately.
-- **Keep it lightweight.** Three questions max. No forms, no required fields, no ceremony.
+- **Keep it lightweight.** Four questions max. No forms, no required fields, no ceremony.
 - **The habit matters more than the log.** Even if nothing gets written down, the pause to think has value.
-- **SRP:** This skill handles reflection only. `/cleanup` handles housekeeping. They are separate responsibilities.
+- **SRP:** This skill handles reflection only. `/cleanup` handles housekeeping. `/handoff` manages the GitHub `next-up` label. They are separate responsibilities, and the fourth interview question delegates to `/handoff` rather than duplicating the GH-write logic.
 
 $ARGUMENTS

@@ -10,3 +10,10 @@ venv/
 .env
 *.db-journal
 .superpowers/
+
+# Session-handoff cache (issue #155). Refreshed on session start by
+# .claude/hooks/session-start.sh and by the /handoff skill. Safe to
+# delete — will be regenerated from GitHub on the next refresh.
+.arboretum/next-cache.json
+.arboretum/next-cache.json.tmp
+.arboretum/next-cache.err

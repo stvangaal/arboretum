@@ -74,6 +74,8 @@ documentation    /start → branch → edit → verify refs → /pr → /cleanup
 
 **Governance:** `/consolidate`, `/init-project`, `/architect`, `/pr`, `/publish`
 
+**Continuity:** `/handoff` — queues a single GitHub issue with the `next-up` label so the next session boots oriented on it. Auto-invoked by `/finish`, `/cleanup`, `/reflect`; the boot banner surfaces whichever open issue carries `next-up` (cached at `.arboretum/next-cache.json`). Requires `gh` CLI installed and authenticated.
+
 **Diagnostics:** `/health-check`
 
 **Layer 2:** `/security-review`

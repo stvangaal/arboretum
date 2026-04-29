@@ -36,6 +36,108 @@ if [ ${#missing[@]} -gt 0 ]; then
   output+=$'\n'"    Create them in order: ARCHITECTURE.md → definitions/ → specs → REGISTER.md → contracts.yaml. See workflows/README.md."
 fi
 
+# ── Session handoff (next-up GitHub issue) ───────────────────────────
+# Surface the issue tagged with the `next-up` label on GitHub. The
+# cache at .arboretum/next-cache.json is refreshed by
+# scripts/refresh-next-cache.sh (synchronously on first session,
+# in the background when stale). 1-hour TTL.
+#
+# Deliberately not plugin-aware — the cache is a project artefact, never
+# plugin-shipped. Rooting at $PROJECT_DIR is correct here (#145).
+#
+# See issue #155 and docs/superpowers/specs/2026-04-28-session-handoff-design.md.
+
+NEXT_CACHE="$PROJECT_DIR/.arboretum/next-cache.json"
+NEXT_REFRESH="$PROJECT_DIR/scripts/refresh-next-cache.sh"
+NEXT_TTL_SECONDS=3600
+
+if [ -f "$NEXT_REFRESH" ]; then
+  # First-session synchronous refresh if no cache exists.
+  if [ ! -f "$NEXT_CACHE" ]; then
+    bash "$NEXT_REFRESH" "$PROJECT_DIR" >/dev/null 2>&1 || true
+  else
+    # Background refresh if cache is older than TTL.
+    cache_age=$(( $(date +%s) - $(stat -c %Y "$NEXT_CACHE" 2>/dev/null \
+                                  || stat -f %m "$NEXT_CACHE" 2>/dev/null \
+                                  || echo 0) ))
+    if [ "$cache_age" -gt "$NEXT_TTL_SECONDS" ]; then
+      ( bash "$NEXT_REFRESH" "$PROJECT_DIR" >/dev/null 2>&1 || true ) &
+      disown 2>/dev/null || true
+    fi
+  fi
+
+  if [ -f "$NEXT_CACHE" ]; then
+    # Extract fields with python3 (preferred) or sed fallback.
+    if command -v python3 >/dev/null 2>&1; then
+      next_block=$(python3 - "$NEXT_CACHE" <<'PY'
+import json, re, sys
+try:
+    with open(sys.argv[1]) as f:
+        cache = json.load(f)
+except Exception:
+    sys.exit(0)
+
+# Defence in depth: the cache writer already scrubs ASCII control
+# characters from author-controlled strings (issue titles, body
+# lines), but if the cache was hand-edited or written by an older
+# version of the script, scrub again here so the boot banner
+# can never render terminal-escape sequences from remote input.
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+def scrub(s):
+    return _CTRL.sub("", s) if isinstance(s, str) else s
+
+err = cache.get("error")
+no_remote = cache.get("no_gh_remote", False)
+issue = cache.get("issue")
+
+lines = []
+if err == "gh-unavailable":
+    lines.append("[Next-up] ERROR: gh CLI not available — cannot read next-up state.")
+    lines.append("  → Install: https://cli.github.com/")
+    lines.append("  → Authenticate: gh auth login")
+    lines.append("  → Then refresh: bash scripts/refresh-next-cache.sh")
+elif no_remote:
+    pass  # silent skip; not a GH project
+elif err:
+    lines.append(f"[Next-up] (cache error: {scrub(err)}; see .arboretum/next-cache.err)")
+elif issue is None:
+    lines.append("[Next-up] (no issue queued — run /handoff to set one)")
+else:
+    n = issue.get("number")
+    title = scrub(issue.get("title", ""))
+    lines.append(f"[Next-up] #{n}: {title}")
+    if issue.get("body_empty"):
+        lines.append("  (body empty — readiness check would fail)")
+    for ln in issue.get("body_first_lines", [])[:5]:
+        lines.append(f"  {scrub(ln)}")
+    url = issue.get("url", "")
+    if url:
+        lines.append(f"  → {scrub(url)}")
+print("\n".join(lines))
+PY
+)
+    else
+      # Minimal sed fallback. Handles the three states bare-bones.
+      next_block=""
+      if grep -q '"error":[[:space:]]*"gh-unavailable"' "$NEXT_CACHE"; then
+        next_block="[Next-up] ERROR: gh CLI not available — cannot read next-up state."$'\n'"  → Install: https://cli.github.com/"$'\n'"  → Authenticate: gh auth login"$'\n'"  → Then refresh: bash scripts/refresh-next-cache.sh"
+      elif grep -q '"no_gh_remote":[[:space:]]*true' "$NEXT_CACHE"; then
+        next_block=""
+      elif grep -q '"issue":[[:space:]]*null' "$NEXT_CACHE"; then
+        next_block="[Next-up] (no issue queued — run /handoff to set one)"
+      else
+        n=$(sed -n 's/.*"number":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$NEXT_CACHE" | head -1)
+        t=$(sed -n 's/.*"title":[[:space:]]*"\([^"]*\)".*/\1/p' "$NEXT_CACHE" | head -1)
+        next_block="[Next-up] #${n}: ${t}"
+      fi
+    fi
+
+    if [ -n "$next_block" ]; then
+      output+=$'\n'"$next_block"
+    fi
+  fi
+fi
+
 # ── Parse register for spec statuses ─────────────────────────────────
 
 if [ -f "$REGISTER" ]; then

@@ -79,6 +79,16 @@ If `docs/REGISTER.md` exists:
 
 If the user declines, move on immediately. Do not push.
 
+### Step 5.5: Capture session handoff
+
+After the reflection suggestion (whether accepted or declined), prompt once:
+
+> "Which issue should be queued as `next-up` for the next session? (Issue number, or 'skip')"
+
+If the user gives a number, invoke `/handoff <N>`. The `/handoff` skill is the canonical writer — it manages the `next-up` GitHub label and refreshes the local cache. Do not call `gh` directly from this skill.
+
+If the user skips, move on. Like the reflection suggestion, this is **advisory** — never push, never gate.
+
 ### Step 6: Suggest next steps
 
 > "Cleanup complete. On main with latest changes.
