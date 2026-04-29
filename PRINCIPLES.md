@@ -24,11 +24,15 @@ A 500-line project doesn't need version-pinned contracts. Start with the minimum
 
 ## 6. Use what exists
 
-Arboretum is choreography. The hard work — brainstorming, planning, TDD, debugging, code review — belongs to specialists like superpowers. Arboretum's role is to choose the score, set the tempo, hand the right brief to each performer, and ensure their outputs assemble into a governed whole. Do not reimplement what the ecosystem provides.
+Arboretum is choreography. The hard work — brainstorming, planning, TDD, debugging, code review — belongs to specialists like superpowers. Workflows declare *abstract capabilities* they need; specific providers plug in to fill them. Capabilities are stable; providers are swappable. Do not reimplement what the ecosystem provides.
 
 ## 7. Learn from each cycle
 
 After shipping a change, capture what surprised you — what the AI got wrong, what the spec missed, what worked unexpectedly well. Domain expertise grows fastest when you reflect while context is fresh.
+
+## 8. Wrap external tools, don't invoke them naked
+
+When arboretum integrates an external skill or tool, it wraps the call with three responsibilities: a project-aware brief encoding the project's conventions; captured user contributions for domain knowledge the AI cannot infer; post-delegation verification that the output meets the brief. Wrapping is what turns generic-correct work into project-correct work — without it, external skills produce outputs that need manual reconciliation against project conventions.
 
 ---
 
