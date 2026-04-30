@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# owner: session-start-cycle-state
 # SessionStart hook: produce a compact project state summary for Claude's context.
 # Reads REGISTER.md, contracts.yaml, and definition files to surface:
 # - Which specs exist and their statuses
@@ -135,6 +136,104 @@ PY
     if [ -n "$next_block" ]; then
       output+=$'\n'"$next_block"
     fi
+  fi
+fi
+
+# ── Build-cycle state ────────────────────────────────────────────────
+# When a build cycle is in flight on the current branch, surface the
+# observable state so the human and LLM see "where am I" without
+# re-deriving it. Detection is shell-only — no gh calls. Per
+# docs/specs/session-start-cycle-state.spec.md (issue #167).
+#
+# Forward-compat: CYCLE_MODE will switch from "spec" to "workflow"
+# when OQ5 step 1 lands (#164). Detection logic is structured around
+# the CYCLE_MODE variable so the directories searched can change
+# without rewriting the matching logic.
+
+CYCLE_MODE="${ARBORETUM_CYCLE_MODE:-spec}"
+CYCLE_BRANCH=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
+if [ -n "$CYCLE_BRANCH" ] && [ "$CYCLE_BRANCH" != "main" ] && [ "$CYCLE_BRANCH" != "master" ]; then
+  # Strip prefix to get topic substring (D2)
+  CYCLE_TOPIC="${CYCLE_BRANCH#feat/}"
+  CYCLE_TOPIC="${CYCLE_TOPIC#fix/}"
+  CYCLE_TOPIC="${CYCLE_TOPIC#docs/}"
+  CYCLE_TOPIC="${CYCLE_TOPIC#chore/}"
+
+  # Search dirs depend on mode (D6 forward-compat). Use an array for
+  # PLAN_DIRS so paths containing spaces survive iteration.
+  if [ "$CYCLE_MODE" = "spec" ]; then
+    DESIGN_DIR="$PROJECT_DIR/docs/superpowers/specs"
+    PLAN_DIRS=("$PROJECT_DIR/docs/plans" "$PROJECT_DIR/docs/superpowers/plans")
+  else
+    # Future: workflows-mode dirs
+    DESIGN_DIR="$PROJECT_DIR/docs/superpowers/specs"
+    PLAN_DIRS=("$PROJECT_DIR/docs/plans" "$PROJECT_DIR/docs/superpowers/plans")
+  fi
+
+  # Find matching design spec by branch-name substring match (D2)
+  CYCLE_SPEC=""
+  if [ -d "$DESIGN_DIR" ]; then
+    CYCLE_SPEC=$(ls -t "$DESIGN_DIR"/*"$CYCLE_TOPIC"*.md 2>/dev/null | head -1 || true)
+  fi
+
+  # Find matching plan
+  CYCLE_PLAN=""
+  for plan_dir in "${PLAN_DIRS[@]}"; do
+    [ -d "$plan_dir" ] || continue
+    found=$(ls -t "$plan_dir"/*"$CYCLE_TOPIC"*.md 2>/dev/null | head -1 || true)
+    if [ -n "$found" ]; then
+      CYCLE_PLAN="$found"
+      break
+    fi
+  done
+
+  # Trigger condition (D1): emit section only if either present
+  if [ -n "$CYCLE_SPEC" ] || [ -n "$CYCLE_PLAN" ]; then
+    cycle_block="[Build cycle]   branch: $CYCLE_BRANCH"
+
+    if [ -n "$CYCLE_SPEC" ]; then
+      cycle_block+=$'\n'"                spec:   $(basename "$CYCLE_SPEC")"
+    fi
+
+    if [ -n "$CYCLE_PLAN" ]; then
+      # Plan-checkbox parsing (D3 input). grep -c exits 1 on no matches but
+      # still prints "0"; capture the value via assignment, fall back via
+      # the failure branch to avoid pipefail double-echo.
+      checked=$(grep -c '^[[:space:]]*-[[:space:]]*\[x\]' "$CYCLE_PLAN" 2>/dev/null) || checked=0
+      unchecked=$(grep -c '^[[:space:]]*-[[:space:]]*\[ \]' "$CYCLE_PLAN" 2>/dev/null) || unchecked=0
+      total=$((checked + unchecked))
+
+      if [ "$total" -gt 0 ]; then
+        cycle_block+=$'\n'"                plan:   $(basename "$CYCLE_PLAN") (${checked}/${total} tasks complete)"
+      else
+        cycle_block+=$'\n'"                plan:   $(basename "$CYCLE_PLAN")"
+      fi
+
+      # Phase inference (D3)
+      remaining=$((total - checked))
+      if [ "$total" -eq 0 ]; then
+        phase="ready to start implementation"
+      elif [ "$checked" -eq 0 ]; then
+        phase="ready to start implementation"
+      elif [ "$checked" -lt "$total" ]; then
+        phase="mid-implementation, ${remaining} tasks remain"
+      else
+        phase="ready for /finish"
+      fi
+    elif [ -n "$CYCLE_SPEC" ]; then
+      # Design spec but no plan
+      phase="pre-implementation, settle plan"
+    else
+      phase=""
+    fi
+
+    if [ -n "$phase" ]; then
+      cycle_block+=$'\n'"                phase:  $phase"
+    fi
+    cycle_block+=$'\n'"                next:   run /start to continue"
+
+    output+=$'\n'"$cycle_block"
   fi
 fi
 
