@@ -1,15 +1,24 @@
 ---
 name: consolidate
-description: Reconcile a branch's code with its governed specs — regenerate AUTO sections, preserve HUMAN sections (stale-flagging broken refs), append harvested decisions from design specs and plans
+description: Reconcile a branch's code with its governance documentation across four levels — architecture, governed specs, file headers + top-of-file comments, and (opt-in) function/inline comments. Regenerates AUTO sections, preserves HUMAN sections (stale-flagging broken refs), appends harvested decisions from design specs and plans.
 disable-model-invocation: false
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
-argument-hint: "[path/to/design-spec.md]"
+argument-hint: "[path/to/design-spec.md] [--audit-comments]"
 layer: 0
 ---
 
 # Consolidate
 
-Reconcile the branch with its governance. For each governed spec touched by this branch:
+Reconcile the branch with its governance documentation. Reconciliation covers four levels:
+
+| Level | Surfaces | Treatment |
+|---|---|---|
+| 1. Architecture | `docs/ARCHITECTURE.md`, `PRINCIPLES.md` | Diff-driven impact prompt; user authors edits by hand. |
+| 2. Governed specs | `docs/specs/*.spec.md`, `docs/REGISTER.md`, `contracts.yaml` | Full reconciliation — AUTO regen, HUMAN preserve, APPEND-AUTO decisions. |
+| 3. File headers + top-of-file comments | `# owner:` lines and the comment block following them | `# owner:` rewrites are mechanical; comment-block freshness uses the level-2 stale-reference scanner. |
+| 4. Function/inline comments | Comments touching changed lines in the diff | **Opt-in** via `--audit-comments`. Default proposed action per flag is *delete*, not *rewrite*. |
+
+For each governed spec touched by this branch (level 2):
 
 - **AUTO sections** (frontmatter, status, Tests, Implementation Notes → Design record) regenerate silently from current code, tests, and citation files.
 - **HUMAN sections** (Purpose, Behaviour, free-text Implementation Notes) are preserved. v1 stale detection scans for file-path-token references that no longer exist on disk; any matches are surfaced to the user for review. (Function-name and test-case detection are deferred — see issue #108.)
@@ -43,20 +52,24 @@ When all reconciliation succeeds, the spec's status flips automatically: `draft 
 
 5. Categorise each changed file:
 
-   | Category | Glob patterns | Needs spec ownership? |
+   | Category | Glob patterns | Reconciliation scope |
    |----------|--------------|----------------------|
-   | Source | `src/**`, `scripts/**`, `.claude/skills/**/SKILL.md`, `skills/**/SKILL.md`, `.claude/hooks/**`, `tests/**` | Yes |
-   | Governance | `docs/specs/**`, `docs/REGISTER.md`, `docs/ARCHITECTURE.md`, `docs/definitions/**`, `contracts.yaml` | No (outputs of this process) |
-   | Ephemeral | `docs/plans/**`, `docs/superpowers/**` | No (harvest, don't own) |
-   | Config/meta | `CLAUDE.md`, `.gitignore`, `settings.json`, `*.yaml` (non-contracts) | No |
+   | Source | `src/**`, `scripts/**`, `.claude/skills/**/SKILL.md`, `skills/**/SKILL.md`, `.claude/hooks/**`, `tests/**` | Owns levels 3 and 4 |
+   | Architecture-level | `docs/ARCHITECTURE.md`, `PRINCIPLES.md` | Level 1 |
+   | Governance outputs | `docs/specs/**`, `docs/REGISTER.md`, `docs/definitions/**`, `contracts.yaml` | Level 2 (outputs of this process) |
+   | Ephemeral | `docs/plans/**`, `docs/superpowers/**` | Harvest sources for level 2 Decisions; never deleted |
+   | Config/meta | `CLAUDE.md`, `.gitignore`, `settings.json`, `*.yaml` (non-contracts) | Out of scope (`CLAUDE.md` hygiene is owned by `claude-md-improver`) |
 
-   Files not matching any pattern default to **Source** (need ownership).
+   Files not matching any pattern default to **Source** (own levels 3 and 4).
 
 6. Present a summary to the user.
 
 ### Step 2: Identify design specs and plans for harvest
 
-1. If `$ARGUMENTS` is a path, treat it as the design spec being harvested.
+1. Parse `$ARGUMENTS`:
+   - If `--audit-comments` is present as a token, strip it as a flag and enable level-4 auditing in step 5i.
+   - The remaining non-flag token, if any, is treated as the design-spec path for harvest.
+   - If multiple non-flag tokens are provided, error: "Expected at most one path argument — got: `<tokens>`."
 
 2. Otherwise, scan `docs/superpowers/specs/*.md` for design specs and `docs/plans/*.md` for plans. Both are harvest sources for the Decisions table.
 
@@ -88,7 +101,7 @@ When all reconciliation succeeds, the spec's status flips automatically: `draft 
 
 ### Step 4: Propose reconciliation plan
 
-Present a structured reconciliation plan to the user:
+Present a structured reconciliation plan to the user, organised by level:
 
 ```
 ## Reconciliation Plan
@@ -97,28 +110,50 @@ Present a structured reconciliation plan to the user:
 - [ ] Create `docs/REGISTER.md` from template (only if absent)
 - [ ] Create `docs/specs/` directory (only if absent)
 
-### New governed specs to create
+### Level 1 — Architecture
+<!-- Only show if any diff signals triggered the heuristic; otherwise note "No level-1 candidates flagged." -->
+- `docs/ARCHITECTURE.md` — candidate edit
+  - Triggered by: <e.g., new top-level skill `<name>` introduces a new entry in skill family table>
+  - Lines potentially affected: <range>
+  - Action: user authors edit by hand (skill does not auto-edit architecture prose)
+
+### Level 2 — Governed specs
+
+#### New governed specs to create
 - `docs/specs/<proposed-name>.spec.md`
   - Would own: <file1>, <file2>, ...
   - Status on creation: `active` if code already exists for the listed owns, otherwise `draft`
   - Content source: harvest from `<design-spec-path>` (if provided) or code analysis only
 
-### Governed specs to reconcile (already exist; touched by this branch)
+#### Governed specs to reconcile (already exist; touched by this branch)
 - `docs/specs/<existing-name>.spec.md` — owns `<changed-file>`
   - AUTO regenerate: frontmatter, Tests, Design record
   - HUMAN scan: Purpose, Behaviour, free-text Implementation Notes
   - Decisions to append: <count> new rows from design specs / plans
 
-### Design specs and plans to harvest decisions from
+#### Design specs and plans to harvest decisions from
 - `docs/superpowers/specs/<file>.md` (retained, not deleted)
 - `docs/plans/<file>.md` (retained, not deleted)
 
-### # owner: header rewrites needed (Path B grouping reconciliation)
+### Level 3 — File headers + top-of-file comments
+
+#### `# owner:` header rewrites (Path B grouping reconciliation)
 <!-- Only show if final grouping differs from headers committed in source files. -->
 - `<source-file>`: `# owner: <old-name>` → `# owner: <new-name>`
 
-### Files not requiring spec ownership
-- <config/meta/governance/ephemeral files>
+#### Top-of-file comment stale-flags
+<!-- Only show if the stale-reference scanner flagged any comment block. -->
+- `<source-file>` § top-of-file comment: stale references `<missing-refs>`
+  - Action: prompt user (review now / skip / leave flagged)
+
+### Level 4 — Function/inline comments
+<!-- Only show if `--audit-comments` was passed; otherwise note "Skipped (use --audit-comments to enable)." -->
+- `<source-file>:<line>` — comment: "<text>"
+  - Heuristic: <removed-identifier | behaviour-changed | contradicts-surrounding-code>
+  - Default action: **delete** (per project rule "default to writing no comments"). User may override.
+
+### Files not requiring reconciliation
+- <config/meta/ephemeral files>
 ```
 
 When grouping files, follow `workflows/README.md ## Spec sizing`. Test files belong with the source files they test.
@@ -191,12 +226,64 @@ No prompts. The flip happens automatically as part of writing the reconciled spe
 
 If `contracts.yaml` exists and new specs reference shared definitions, add version pins. Otherwise skip.
 
-#### 5g. # owner: header rewriting (Path B grouping reconciliation)
+#### 5g. Level 3 — File headers + top-of-file comments
 
-If the approved reconciliation plan included header rewrites (because final grouping differs from what files committed to):
+For each changed source file:
 
-1. For each affected source file: edit the first comment line in place (`# owner: <new-name>`).
-2. Update the corresponding `Owns` cell in REGISTER.md (already done in 5d, but verify).
+1. **`# owner:` header rewriting** (Path B grouping reconciliation): if the approved reconciliation plan included header rewrites (because final grouping differs from what files committed to):
+   - Edit the first comment line in place (`# owner: <new-name>`).
+   - Update the corresponding `Owns` cell in REGISTER.md (already done in 5d, but verify).
+
+2. **Top-of-file comment audit**: run the stale-reference scanner (see "Stale reference detection" below) over the comment block immediately after `# owner:`. For each flagged comment block:
+   - Print: "Stale references in `<source-file>` § top-of-file comment: `<missing-refs>`"
+   - Prompt: "Review the section now? (y / n / skip)"
+   - On `y`: present the comment for inline edit.
+   - On `n` / `skip`: leave unchanged but record the flag for the consolidation summary.
+
+#### 5h. Level 1 — Architecture impact prompt
+
+For each changed source file in this branch, apply diff-driven heuristics to detect candidates whose changes may have altered system shape. Heuristics include:
+
+- New top-level skill (new directory under `skills/`).
+- New external dependency (additions to package manifests, new imports of third-party libraries).
+- New public surface (new exported function in a level-2 spec's Provides table).
+- Edits to files cited by `docs/ARCHITECTURE.md` or `PRINCIPLES.md`.
+
+For each triggered heuristic:
+
+- Print: "Possible architecture impact: `<source-file>` (`<heuristic>`). Affected target: `<docs/ARCHITECTURE.md | PRINCIPLES.md>`"
+- Prompt: "Review the target now? (y / n / skip)"
+- On `y`: open the target file and surface the relevant section for the user to edit. The skill does not auto-edit architecture-level prose.
+- On `n` / `skip`: leave unchanged but record the flag for the consolidation summary.
+
+If `docs/ARCHITECTURE.md` or `PRINCIPLES.md` is absent: skip silently — never auto-create.
+
+#### 5i. Level 4 — Function/inline comment audit (opt-in)
+
+Skip this substep unless the user passed `--audit-comments` as an argument to `/consolidate`.
+
+When enabled, scan the diff for comments touching changed lines:
+
+```bash
+git diff <merge-base>...HEAD -- <source-file>
+```
+
+Apply heuristics to flag likely-stale comments:
+
+- Comments referencing removed identifiers (function/variable names in the comment that no longer exist in the file).
+- Comments describing behaviour that changed (compare adjacent code lines pre- and post-diff).
+- Comments contradicting surrounding code (e.g., comment says "returns null on error" but adjacent code now throws).
+
+For each flag:
+
+- Print: "Possibly stale comment in `<source-file>:<line>`: `<comment-text>` — heuristic: `<which-one>`"
+- Default proposed action: **delete**, per the project rule "default to writing no comments." User may override per item.
+- Prompt: "Apply default (delete)? (y / edit / skip)"
+- On `y`: delete the comment.
+- On `edit`: present the comment for inline edit.
+- On `skip`: leave unchanged but record the flag for the consolidation summary.
+
+This substep never adds new comments. The bias is toward removing stale ones.
 
 ### Step 6: Verify
 
@@ -207,19 +294,28 @@ If the approved reconciliation plan included header rewrites (because final grou
    ```
    ## Consolidation Complete
 
-   ### Created
+   ### Level 1 — Architecture
+   - <ARCHITECTURE.md / PRINCIPLES.md edits applied or flagged for review, or "no candidates flagged">
+
+   ### Level 2 — Governed specs
+
+   #### Created
    - <new spec files>
    - <REGISTER.md if bootstrapped>
 
-   ### Reconciled
+   #### Reconciled
    - <spec> — AUTO regenerated; HUMAN unchanged; <N> decisions appended; status: <new>
    - <spec> — AUTO regenerated; <N> HUMAN sections stale-flagged; status: <new>
 
-   ### Retained (no deletion)
+   #### Retained (no deletion)
    - <design specs and plans referenced>
 
-   ### Header rewrites
-   - <files whose # owner: was rewritten>
+   ### Level 3 — File headers + top-of-file comments
+   - `# owner:` rewrites: <files, or "none">
+   - Top-of-file comment edits: <files, or "none">
+
+   ### Level 4 — Function/inline comments
+   - <comment edits applied, only if --audit-comments was passed; else "skipped (use --audit-comments to enable)">
 
    ### Health Check
    <pass/fail summary>
@@ -227,29 +323,31 @@ If the approved reconciliation plan included header rewrites (because final grou
 
 ## Regeneration model
 
-The governed spec is regenerated on each pass to reflect current code, while preserving human-authored content and accumulating decision history.
+Governed specs (level 2) are regenerated on each pass to reflect current code, while preserving human-authored content and accumulating decision history. The same AUTO/HUMAN/APPEND-AUTO vocabulary now extends to surfaces beyond the governed spec: `# owner:` lines (level 3) are AUTO; top-of-file source comments and `ARCHITECTURE.md` / `PRINCIPLES.md` prose are HUMAN.
 
 Sections are classified by authorship:
 
-- **AUTO** — frontmatter, status, Tests, Implementation Notes → Design record subsection. Regenerated silently from current code/tests/citations on every pass.
-- **HUMAN** — Purpose, Behaviour, free-text Implementation Notes. Never overwritten. Scanned for stale references; flagged matches prompt the user.
-- **APPEND-AUTO** — Decisions. New rows harvested from design specs and plans referenced by this spec. Existing rows are never modified or removed. The Source column is the idempotency key — `/consolidate` does not re-add a decision whose source artifact + decision ID is already cited.
+- **AUTO** — frontmatter, status, Tests, Implementation Notes → Design record subsection (level 2); `# owner:` lines (level 3). Regenerated silently from current code/tests/citations on every pass.
+- **HUMAN** — Purpose, Behaviour, free-text Implementation Notes (level 2); top-of-file source comments (level 3); `docs/ARCHITECTURE.md` / `PRINCIPLES.md` prose (level 1). Never overwritten by the skill. Scanned for stale references where applicable; flagged matches prompt the user.
+- **APPEND-AUTO** — Decisions (level 2 only). New rows harvested from design specs and plans referenced by this spec. Existing rows are never modified or removed. The Source column is the idempotency key — `/consolidate` does not re-add a decision whose source artifact + decision ID is already cited.
 
-## Stale reference detection (HUMAN sections)
+## Stale reference detection
 
-For each HUMAN section in an existing spec being regenerated:
+The same scanner applies to any text region classified as HUMAN that may cite file paths: governed-spec HUMAN sections (level 2) and top-of-file source comments (level 3).
+
+For each region being scanned:
 
 1. Extract candidate references via regex:
    - Backtick-wrapped paths: `` `docs/foo.md` `` matches `docs/foo.md`.
    - Naked path tokens matching `(\.?\w[\w./-]*\.\w+)`.
 2. For each candidate, check `[ -e "$candidate" ]` (file exists).
-3. If any references are missing, the section is "stale-flagged":
-   - Print: "Stale references in `<spec-file>` § `<section-name>`: `<missing-refs>`"
-   - Prompt: "Review the section now? (y / n / skip)"
-   - On `y`: present the section for inline edit.
+3. If any references are missing, the region is "stale-flagged":
+   - Print: "Stale references in `<file>` § `<region-name>`: `<missing-refs>`"
+   - Prompt: "Review the region now? (y / n / skip)"
+   - On `y`: present the region for inline edit.
    - On `n` / `skip`: leave unchanged but record the flag for the consolidation summary.
 
-Function-name and test-case stale detection is out of scope for v1 (see issue tracker for the richer guided-reconciliation flow).
+Function-name and test-case stale detection is out of scope for v1 (see issue tracker for the richer guided-reconciliation flow). Level-4 comment heuristics are documented in 5i.
 
 ## Decision harvest from design specs and plans
 
@@ -262,22 +360,12 @@ For each design spec or plan referenced in the spec's `### Design record` subsec
 
 Idempotency: re-running `/consolidate` with no new design specs / plans produces zero new rows.
 
-## # owner: header rewriting (Path B grouping reconciliation)
-
-Path B source files commit to a `# owner:` value matching the design-spec topic. If `/consolidate` decides at execution time to group files into a different spec name (per cohesion criteria), it must rewrite the headers and the REGISTER.md entry.
-
-Procedure:
-
-1. After deciding on the final grouping (Step 4 reconciliation plan), compare each source file's current `# owner:` value to its assigned spec name.
-2. For each mismatch: edit the file's first comment line in place (`# owner: <new-spec-name>`).
-3. Update the corresponding `Owns` cell in REGISTER.md.
-4. Confirm with the user before applying — header rewrites are visible commits and the user may prefer to keep the original grouping.
-
 ## Important Notes
 
 - **Never auto-commit.** All changes to governed documents require user approval before writing to disk. Present drafts and proposed edits, then wait for confirmation.
 - **Design specs and plans are permanent records.** Never delete them. They are cited from the governed spec's Design record subsection and harvested for decisions.
-- **Respect collaborative authoring.** When harvesting from design specs, transplant human-authored content. When no design spec exists, stub Behaviour for the human to write — do not generate it from code.
+- **Respect collaborative authoring.** When harvesting from design specs, transplant human-authored content. When no design spec exists, stub Behaviour for the human to write — do not generate it from code. Level-1 architecture prose is never auto-edited by this skill; the skill surfaces candidates and the user authors edits.
+- **Level 4 is opt-in and delete-biased.** `--audit-comments` enables function/inline comment auditing. The default proposed action per flag is *delete*, never *write*, per the project rule "default to writing no comments." This substep never adds new comments.
 - **Status auto-flips.** No "promote to active" prompts. `draft → active` (or `stale → active`) happens automatically when reconciliation succeeds. The human's commitment moment is the act of running `/consolidate`.
 - **Idempotency.** Running this skill twice with no intervening code or harvest changes produces no diff. AUTO sections regenerate to the same content; HUMAN sections are unchanged; the Decisions table is unchanged because the Source column dedups already-cited decisions.
 
