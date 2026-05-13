@@ -173,13 +173,120 @@ else
   [ "$check3_issues" -eq 0 ] && ok "contracts.yaml matches all spec tables"
 fi
 
-# Note: a previous Check 4 validated REGISTER.md dependency-notation
-# consistency by parsing a "Depends On" column. That column was removed
-# when generate-register.sh moved to the 4-column schema (Spec | Status |
-# Owner | Owns); dependency tracking now lives in spec frontmatter and in
-# the human-readable "Dependency Resolution Order" section of REGISTER.md
-# (which is prose, not a structured contract). The check therefore became
-# a silent no-op and was removed in the same commit that surfaced this.
+# ── Check 4: Dependency notation consistency ────────────────────────
+#
+# Validates each entry in every spec's frontmatter `requires:` and
+# `provides:` blocks against three conventions:
+#
+#   1. Path-shaped (contains "/") → must end in .md
+#        good: definitions/pubmed-record.md
+#        bad:  definitions/pubmed-record   (missing .md)
+#
+#   2. Versioned (contains "@") → must match @v<N> exactly
+#        good: pubmed-record@v0, pubmed-record@v1
+#        bad:  pubmed-record@1, pubmed-record@v, pubmed-record@vX
+#
+#   3. Bare name (no "/", no "@") → no further check; treated as a
+#      definition reference resolvable via the Definition Index.
+#
+# The previous Check 4 parsed a REGISTER.md "Depends On" column that
+# was removed in the 4-column schema migration. Dependency tracking
+# now lives in spec frontmatter — Check 4 follows.
+
+echo ""
+echo "━━━ Check 4: Dependency notation consistency ━━━"
+
+if [ ! -d "$SPECS_DIR" ]; then
+  info "No specs directory — skipping"
+else
+  check4_issues=0
+
+  # Inline YAML-list extractor. The parsing pattern mirrors
+  # generate-register.sh's extract_owns_list (loop frontmatter, look
+  # for `<field>:`, collect `- item` lines until indentation drops);
+  # this function generalizes it to any list field. Keeping
+  # validate-cross-refs.sh self-contained avoids pulling in
+  # generate-register's argument-parsing side effects.
+  extract_yaml_list() {
+    local file="$1"
+    local field="$2"
+    local in_fm=false
+    local fm_delims=0
+    local in_field=false
+
+    while IFS= read -r line; do
+      if [[ "$line" == "---" ]]; then
+        ((fm_delims++)) || true
+        if [ "$fm_delims" -eq 1 ]; then in_fm=true; continue; fi
+        if [ "$fm_delims" -eq 2 ]; then break; fi
+      fi
+      [ "$in_fm" = false ] && continue
+
+      if [[ "$line" =~ ^${field}: ]]; then
+        in_field=true
+        continue
+      fi
+      if [ "$in_field" = true ]; then
+        if [[ "$line" =~ ^[[:space:]]*-[[:space:]](.+) ]]; then
+          local item="${BASH_REMATCH[1]}"
+          item=$(echo "$item" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          [ -n "$item" ] && echo "$item"
+        elif [[ "$line" =~ ^[^[:space:]] ]]; then
+          in_field=false
+        fi
+      fi
+    done < "$file"
+  }
+
+  validate_dep_entry() {
+    local spec_name="$1"
+    local field="$2"      # "requires" or "provides"
+    local entry="$3"
+
+    # Strip an optional @vN suffix before path validation, so versioned
+    # path notation like `definitions/foo.md@v1` is accepted: the path
+    # portion before @ is what the .md suffix rule applies to.
+    local path_part="${entry%@*}"
+    local version_part=""
+    if [[ "$entry" == *"@"* ]]; then
+      version_part="${entry##*@}"
+    fi
+
+    # Path-shaped entries must end in .md.
+    if [[ "$path_part" == */* ]]; then
+      if [[ "$path_part" != *.md ]]; then
+        warn "$spec_name: $field entry \"$entry\" looks like a path but lacks .md suffix"
+        return 1
+      fi
+    fi
+
+    # Versioned entries must match v<N> exactly. Anchoring the regex
+    # on the portion after @ also rejects trailing garbage (v1x, v1.0).
+    if [ -n "$version_part" ]; then
+      if ! [[ "$version_part" =~ ^v[0-9]+$ ]]; then
+        warn "$spec_name: $field entry \"$entry\" has malformed version (expected @v<N>, got @${version_part})"
+        return 1
+      fi
+    fi
+
+    return 0
+  }
+
+  for spec_file in "$SPECS_DIR"/*.spec.md; do
+    [ ! -f "$spec_file" ] && continue
+    spec_name=$(basename "$spec_file")
+
+    for field in requires provides; do
+      while IFS= read -r entry; do
+        [ -z "$entry" ] && continue
+        validate_dep_entry "$spec_name" "$field" "$entry" \
+          || ((check4_issues++)) || true
+      done < <(extract_yaml_list "$spec_file" "$field")
+    done
+  done
+
+  [ "$check4_issues" -eq 0 ] && ok "All frontmatter dep notations are well-formed"
+fi
 
 # ── Summary ──────────────────────────────────────────────────────────
 
