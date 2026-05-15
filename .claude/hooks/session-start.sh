@@ -139,6 +139,59 @@ PY
   fi
 fi
 
+# ── Arboretum update check ───────────────────────────────────────────
+# Surface a one-line notice if the installed plugin is behind the latest
+# published release. Cache at .arboretum/update-cache.json; refreshed by
+# scripts/refresh-update-cache.sh with a 24-hour TTL (background after
+# first run, same pattern as next-cache). Silent on error or missing gh.
+
+UPDATE_CACHE="$PROJECT_DIR/.arboretum/update-cache.json"
+UPDATE_REFRESH="$PROJECT_DIR/scripts/refresh-update-cache.sh"
+UPDATE_TTL_SECONDS=86400
+
+if [ -f "$UPDATE_REFRESH" ]; then
+  if [ ! -f "$UPDATE_CACHE" ]; then
+    bash "$UPDATE_REFRESH" "$PROJECT_DIR" >/dev/null 2>&1 || true
+  else
+    cache_age=$(( $(date +%s) - $(stat -c %Y "$UPDATE_CACHE" 2>/dev/null \
+                                  || stat -f %m "$UPDATE_CACHE" 2>/dev/null \
+                                  || echo 0) ))
+    if [ "$cache_age" -gt "$UPDATE_TTL_SECONDS" ]; then
+      ( bash "$UPDATE_REFRESH" "$PROJECT_DIR" >/dev/null 2>&1 || true ) &
+      disown 2>/dev/null || true
+    fi
+  fi
+
+  update_block=""
+  if [ -f "$UPDATE_CACHE" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+      update_block=$(python3 - "$UPDATE_CACHE" <<'PY'
+import json, re, sys
+try:
+    with open(sys.argv[1]) as f:
+        cache = json.load(f)
+except Exception:
+    sys.exit(0)
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+if cache.get("update_available"):
+    iv = _CTRL.sub("", cache.get("installed_version") or "?")
+    lv = _CTRL.sub("", cache.get("latest_version") or "?")
+    print(f"[Arboretum] Update available: v{iv} → v{lv} — run /plugin update arboretum to upgrade.")
+PY
+) || true
+    else
+      if grep -q '"update_available"[[:space:]]*:[[:space:]]*true' "$UPDATE_CACHE" 2>/dev/null; then
+        _iv=$(sed -n 's/.*"installed_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$UPDATE_CACHE" | head -1)
+        _lv=$(sed -n 's/.*"latest_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$UPDATE_CACHE" | head -1)
+        update_block="[Arboretum] Update available: v${_iv:-?} → v${_lv:-?} — run /plugin update arboretum to upgrade."
+      fi
+    fi
+  fi
+  if [ -n "${update_block:-}" ]; then
+    output+=$'\n'"$update_block"
+  fi
+fi
+
 # ── Build-cycle state ────────────────────────────────────────────────
 # When a build cycle is in flight on the current branch, surface the
 # observable state so the human and LLM see "where am I" without
