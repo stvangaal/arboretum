@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# owner: project-infrastructure
 # _smoke-test-generate-register-empty-owns.sh — regression test for
 # generate-register.sh's empty-owns handling.
 #

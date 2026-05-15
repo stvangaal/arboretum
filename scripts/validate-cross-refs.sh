@@ -24,7 +24,6 @@ fi
 PROJECT_DIR="${1:-$(pwd)}"
 REGISTER="$PROJECT_DIR/docs/REGISTER.md"
 CONTRACTS="$PROJECT_DIR/contracts.yaml"
-DEFS_DIR="$PROJECT_DIR/docs/definitions"
 SPECS_DIR="$PROJECT_DIR/docs/specs"
 
 issues=0
@@ -62,7 +61,7 @@ else
     # markdown-wrapped reference like `definitions/foo` is not consumed into
     # the captured reference (would otherwise produce a false positive
     # missing-file error of the shape "definitions/foo`.md does not exist").
-    def_refs=$(grep -oE 'definitions/[^@|[:space:])`]+' "$spec_file" 2>/dev/null \
+    def_refs=$(grep -oE 'definitions/[^@|[:space:],)`]+' "$spec_file" 2>/dev/null \
       | sort -u || true)
 
     while IFS= read -r ref; do

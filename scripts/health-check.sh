@@ -405,7 +405,6 @@ header "Check 2: Register owned files vs. disk"
 # Extract owned file/directory patterns from register
 # Format produced by generate-register.sh: | spec.md | status | owner | owns |
 # Owns column entries are backtick-wrapped: `src/foo.py`, `tests/test_foo.py`.
-missing_files=()
 spec_owns_map=""
 
 if [ "$register_schema_compatible" = false ]; then
@@ -468,7 +467,7 @@ for src_dir in src "$( basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' )" t
 
     # Check if this file is covered by any ownership pattern
     owned=false
-    while IFS=: read -r pattern owner; do
+    while IFS=: read -r pattern _; do
       [ -z "$pattern" ] && continue
       if [[ "$pattern" == *"**"* ]]; then
         dir="${pattern%%\*\*}"
