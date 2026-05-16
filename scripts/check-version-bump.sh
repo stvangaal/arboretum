@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# owner: arboretum-as-plugin
+#
+# check-version-bump.sh — pull-request gate. Two assertions:
+#   1. The three plugin-version occurrences are mutually equal.
+#   2. If the diff against the merge-base touches shippable content, the
+#      plugin version was incremented.
+#
+# Base ref via BASE_REF env (CI sets it); defaults to origin/main.
+# Honours REPO_ROOT (env) for testability.
+
+set -euo pipefail
+
+REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+cd "$REPO_ROOT"
+
+BASE_REF="${BASE_REF:-origin/main}"
+
+v_plugin="$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')"
+v_market="$(python3 -c 'import json; print(json.load(open(".claude-plugin/marketplace.json"))["version"])')"
+v_market_plugin="$(python3 -c 'import json; print(json.load(open(".claude-plugin/marketplace.json"))["plugins"][0]["version"])')"
+
+# --- Assertion 1: the three version occurrences agree ---
+if [ "$v_plugin" != "$v_market" ] || [ "$v_plugin" != "$v_market_plugin" ]; then
+  {
+    echo "FAIL: plugin version occurrences disagree —"
+    echo "  .claude-plugin/plugin.json          : $v_plugin"
+    echo "  .claude-plugin/marketplace.json     : $v_market"
+    echo "  .claude-plugin/marketplace.json [0] : $v_market_plugin"
+    echo "Fix: scripts/bump-version.sh <major|minor|patch> rewrites all three together."
+  } >&2
+  exit 1
+fi
+
+# --- Did the PR change shippable content? ---
+merge_base="$(git merge-base "$BASE_REF" HEAD)"
+
+# Dev-only paths — mirror the exclude set in .github/workflows/sync-public.yml.
+# A diff confined to these does not reach the public repo and needs no bump.
+# CLAUDE.public.md / README.public.md are deliberately NOT listed: sync-public.yml
+# copies them into the published CLAUDE.md / README.md, so they are shippable.
+# File patterns are $-anchored so e.g. bin/arboretum-graduate does not also
+# exempt bin/arboretum-graduate-helper; directory patterns end in / by design.
+dev_only_regex='^(docs/specs/|docs/plans/|docs/superpowers/|docs/reviews/|docs/reference/|docs/ARCHITECTURE\.md$|docs/REGISTER\.md$|\.github/|\.claude/skills/|\.claude/projects/|scripts/_archived/|bin/arboretum-graduate$|CLAUDE\.md$|README\.md$|\.graduateignore$|\.gitmodules$|\.arboretum\.yml$|contracts\.yaml$)'
+
+shippable="$(git diff --name-only "$merge_base" HEAD | grep -Ev "$dev_only_regex" || true)"
+
+if [ -z "$shippable" ]; then
+  echo "OK: no shippable content changed — version bump not required (version $v_plugin)."
+  exit 0
+fi
+
+# --- Assertion 2: shippable content changed, so the version must increase ---
+base_version="$(git show "$merge_base:.claude-plugin/plugin.json" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
+
+if python3 -c 'import sys
+def parse(v): return tuple(int(x) for x in v.split("."))
+sys.exit(0 if parse(sys.argv[1]) > parse(sys.argv[2]) else 1)' "$v_plugin" "$base_version"; then
+  echo "OK: shippable content changed; version bumped $base_version -> $v_plugin."
+  exit 0
+fi
+
+{
+  echo "FAIL: shippable content changed but the plugin version was not incremented."
+  echo "  base version : $base_version"
+  echo "  this branch  : $v_plugin"
+  echo "  shippable paths changed:"
+  echo "$shippable" | sed 's/^/    /'
+  echo "Fix: scripts/bump-version.sh <major|minor|patch>"
+} >&2
+exit 1
