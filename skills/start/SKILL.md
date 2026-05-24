@@ -18,9 +18,20 @@ Claude should invoke this skill (or follow its logic) whenever the user:
 - References a GitHub issue they want to work on
 - Starts a session with an intent to modify the project
 
-This skill is read-only and does not modify any files. It gathers context and recommends next steps.
+This skill is read-only under `v1` (gather context, recommend next steps). Under `v2` (`pipeline.workflow: v2`), the agent-target lane in Step 4-v2 writes a task brief via `scripts/write-agent-brief.sh`; the v1 routing path remains read-only.
 
 ## Procedure
+
+### 0. Read the pipeline.workflow flag
+
+Before any routing, read the active pipeline version:
+
+```bash
+PIPELINE=$(bash scripts/read-pipeline-flag.sh)
+```
+
+- **`v1` (default)** — continue with Steps 1–6 below (Path A/B routing). Skip Section 4-v2.
+- **`v2`** — continue with Steps 1–3 (issue, survey, branch state) as usual, then jump to **Step 4-v2: Agent-target triage** instead of Step 4.
 
 ### 1. Identify the change request
 
@@ -89,6 +100,46 @@ Present recommendation:
 > Or do you want to take **Path B (design-first)** — brainstorm and build first, governed spec at the end?"
 
 For genuinely exploratory questions (no idea what to build yet), the **explore** workflow with a *spike* may be more appropriate than Path B — see `workflows/explore.md ## Spike vs. Path B`.
+
+### 4-v2. Agent-target triage (when `PIPELINE=v2`)
+
+Skip this section when `PIPELINE=v1`. When `PIPELINE=v2`, replace Step 4 with this triage.
+
+The unified workflow's only structural fork: classify the request as **agent-target** or **everything-else**.
+
+**Agent-target requires all four criteria to hold unambiguously:**
+
+1. **Decision-free** — exactly one sensible implementation; no choice between approaches.
+2. **Bounded** — one owner/spec, a handful of files, no architecture or cross-spec impact.
+3. **Gate-cheap** — spec-exempt (patch-fix / implementation-detail refactor / supplementary test) OR fits within an existing `active` governed spec's behaviour. No spec change required.
+4. **Low blast radius** — reversible, cheap to verify.
+
+**Precedence:** if any criterion is uncertain or borderline, classify as **everything-else**. The triage never rounds up — the escape hatch in `/build` recovers anything that slips through.
+
+**When classified as agent-target:**
+
+1. Author the crisp task statement (one or two sentences naming the change and the file(s) it touches).
+2. Write the task brief. **Use a quoted heredoc** so the task statement is written verbatim even if it contains `$`, backticks, or other shell metacharacters (the original user request is untrusted input):
+
+   ```bash
+   bash scripts/write-agent-brief.sh <issue> <<'EOF'
+   <crisp task statement>
+   EOF
+   ```
+
+   Do not use `echo "..."` — a double-quoted echo argument would evaluate `$(...)` and backticks in the task statement before piping, opening a shell-injection path from user-controlled issue text.
+
+3. Hand off to `/build` with the brief:
+
+   ```
+   /build .arboretum/agent-briefs/<issue>.md
+   ```
+
+   No `/design`, no plan — the brief is the implementation brief (WS2 D2).
+
+**When classified as everything-else:**
+
+For PR1 of WS2, continue with Step 4 (Path A/B determination) above. Steps 1–3 are already complete — do not re-run them. (Subsequent WS2 PRs replace this with the unified everything-else lane: `/design` → plan folded in → `/build`.)
 
 ### 5. Verify the workflow's required plugins
 

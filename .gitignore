@@ -24,3 +24,7 @@ venv/
 .arboretum/handoff-done
 .arboretum/handoff-nudged
 .arboretum/handoff-pending.json
+
+# Agent-target task briefs (WS2 of #295). Session artifacts written by
+# /start when an issue is triaged as agent-target. Not source.
+.arboretum/agent-briefs/

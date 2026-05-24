@@ -36,3 +36,12 @@ branch_prefixes: [feat, fix, docs, chore, refactor, spike]
 # pipeline-overhaul mega-epic). Arboretum tooling treats issues as having
 # native sub-issues; downstream projects can opt out by overriding to false.
 sub_issues_enabled: true
+
+# Pipeline overhaul flags — WS2 of the pipeline-overhaul mega-epic
+# (#295 / docs/superpowers/specs/2026-05-20-pipeline-overhaul-design.md).
+#
+# `workflow: v1` — current behaviour (Path A/B routing in /start).
+# `workflow: v2` — unified workflow with agent-target triage fork.
+# Default stays v1 throughout the WS2 build; flip to v2 per-surface at cutover.
+pipeline:
+  workflow: v1
