@@ -58,7 +58,9 @@ Present what you found:
 
 Do not block on issue creation — suggest it but proceed if the user declines.
 
-### 2b. Survey existing specs
+### 2b. Survey existing specs (v1 only — skip under v2)
+
+Under v2, SURVEY is owned by `/design` Section v2.1 (for everything-else) or is not needed (for agent-target, which is spec-exempt or fits-existing-spec by definition). Skip this step entirely when `PIPELINE=v2`.
 
 Read existing specs in `docs/specs/` and `docs/ARCHITECTURE.md` to understand where this change fits in the existing project structure. Identify which specs are likely touched by this work.
 
@@ -139,7 +141,15 @@ The unified workflow's only structural fork: classify the request as **agent-tar
 
 **When classified as everything-else:**
 
-For PR1 of WS2, continue with Step 4 (Path A/B determination) above. Steps 1–3 are already complete — do not re-run them. (Subsequent WS2 PRs replace this with the unified everything-else lane: `/design` → plan folded in → `/build`.)
+Hand off to `/design` with the issue number AND the user's original request:
+
+```
+/design Issue #<N>: <user's original change request>
+```
+
+The `Issue #<N>:` prefix gives `/design` v2 the value it needs for the `related-issue` field in the design spec's S2 frontmatter (`/build`'s gate requires it). If no issue exists yet, hand off as `/design Issue #pending: <request>` and `/design` will prompt to create one before writing the spec.
+
+`/design` (under v2) runs SURVEY + Branch 1 dispatch + writes the design spec + folds in planning + exits to `/build`. See `/design` Section v2 for the Branch 1 mode vocabulary. Steps 1 (issue) and 3 (branch state) above are already complete — pass them along, don't re-run. Step 2b (SURVEY) is owned by `/design` v2.1; `/start` skips it under v2 (see Step 2b's v2-skip note).
 
 ### 5. Verify the workflow's required plugins
 

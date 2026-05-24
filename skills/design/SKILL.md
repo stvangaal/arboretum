@@ -4,7 +4,7 @@ owner: workflow-management
 description: Wrapper skill that orchestrates the design phase — runs external brainstorming to produce a design spec. On Path A, also consolidates into a governed spec at status `draft`; on Path B, exits to planning with the design spec as in-flight authority (governed spec is born later at `/finish`). Use at the start of planned work.
 disable-model-invocation: false
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
-argument-hint: "[path/to/design-spec.md]"
+argument-hint: "[path/to/design-spec.md | change request text]"
 layer: 0
 ---
 
@@ -20,7 +20,21 @@ Orchestrates the transition from idea to implementable governed spec. This is a 
 
 ## Procedure
 
-### Step 0: Determine path — A or B?
+### Step 0: Read the pipeline.workflow flag
+
+Before any path-selection logic, read the active pipeline version:
+
+```bash
+PIPELINE=$(bash scripts/read-pipeline-flag.sh)
+```
+
+- **`v1` (default)** — continue with Step 0-v1 below (Path A/B selection, then the existing Steps 1-4). Skip Section v2.
+- **`v2`** — skip Step 0-v1 and Steps 1-4 entirely. Jump to **Section v2: Unified design phase** below — it replaces the v1 procedure.
+
+### Step 0-v1: Determine path — A or B? (when `PIPELINE=v1`)
+
+Skip this section when `PIPELINE=v2`. Under v2, jump to **Section v2: Unified design phase** below.
+
 
 Ask the user (or determine from context) which governance path applies:
 
@@ -33,7 +47,7 @@ The handoffs differ:
 
 Default to Path A unless the user explicitly says they want to explore.
 
-### Step 1: Check for existing design work
+### Step 1: Check for existing design work (v1 only — skip under v2)
 
 If `$ARGUMENTS` is provided, treat it as a path to an existing superpowers design spec:
 1. Read the file
@@ -52,11 +66,11 @@ If any exist, present them:
 >
 > Consolidate one of these, or start a new design?"
 
-### Step 1b: Survey existing specs
+### Step 1b: Survey existing specs (v1 only — skip under v2)
 
 Before starting the brainstorming phase, read existing specs in `docs/specs/` and `docs/ARCHITECTURE.md` to surface governed code that may be relevant to the design topic. This prevents designing something that overlaps with existing work.
 
-### Step 2: Brainstorm (wrapped delegation to brainstorm capability)
+### Step 2: Brainstorm (v1 only — skip under v2)
 
 If no existing design spec is being used, initiate the brainstorming process. This step wraps the external brainstorm capability with three responsibilities — *brief*, *capture user contributions*, *verify* — per `docs/ARCHITECTURE.md ## Wrapped delegation pattern`.
 
@@ -105,7 +119,7 @@ When verification passes:
 - **Path B (design-first):** the design spec is the output. Exit to planning — `/consolidate` will run later at `/finish` and produce the governed spec from built state. Do not call `/consolidate` here.
 - **Path A (spec-first):** consolidate the design spec into the governed spec now (Step 3) so it can be reviewed before planning. The governed spec lands at status `draft`.
 
-### Step 3: Consolidate into governed spec
+### Step 3: Consolidate into governed spec (v1 only — skip under v2)
 
 Run `/consolidate` with the design spec path:
 
@@ -121,7 +135,7 @@ Run `/consolidate` with the design spec path:
 > "Governed spec created: `docs/specs/<name>.spec.md` (status: `draft` for Path A pre-build, or `active` for Path B post-build).
 > Ready to plan the implementation?"
 
-### Step 4: Transition to planning (wrapped delegation to plan capability)
+### Step 4: Transition to planning (v1 only — skip under v2)
 
 Once the governed spec exists (Path A) or the design spec is approved (Path B), invoke the plan capability with the same brief / contribute / verify wrapping.
 
@@ -158,6 +172,88 @@ After the plan returns:
 - **Location match** — the plan was written to `docs/plans/`, not the `superpowers:writing-plans` default `docs/superpowers/plans/`. If it landed in the wrong place, move it.
 
 If any check fails, ask the plan capability to amend (or amend directly).
+
+## Section v2: Unified design phase (when `PIPELINE=v2`)
+
+Skip this section when `PIPELINE=v1`. When `PIPELINE=v2`, replace Steps 0-v1, 1, 1b, 2, 3, 4 above with the procedure here.
+
+Under v2, the Path A vs Path B distinction is gone: every everything-else change produces an **ephemeral design spec** (WS2 D3, D4), the governed spec is born from built state at `/finish` (D3), and planning folds in to this skill (D4 + Touched-assets row in the WS2 design).
+
+`$ARGUMENTS` arrives from `/start` in the form `Issue #<N>: <change request text>`.
+
+Parse `$ARGUMENTS` for the issue number and the request text — the issue number populates `related-issue` in v2.5's S2 frontmatter (`/build`'s strict gate requires a positive integer). If `$ARGUMENTS` is `Issue #pending: <request>`, prompt the user to create the GitHub issue before writing the design spec (use `gh issue create` per the project's standard issue templates) and substitute the new issue number.
+
+Note: under v2, `$ARGUMENTS` carries change-request text plus an issue prefix, not a spec path. (Under v1, `$ARGUMENTS` is a spec path per the existing Step 1.)
+
+### v2.1 SURVEY
+
+Before any design work, read existing governed code that may be relevant to the topic:
+
+1. List `docs/specs/` and read any spec whose name plausibly overlaps the request topic — don't infer from filenames alone.
+2. Read `docs/ARCHITECTURE.md` — scan the section relevant to the request area.
+3. Read `docs/REGISTER.md` — identify the owning spec for any files the request mentions explicitly.
+
+Under v2, SURVEY is owned exclusively by this skill — `/start` skips its Step 2b survey when `PIPELINE=v2` (see `/start` Step 2b's v2-skip note). This keeps the survey single-owner; the v1 split (`/start` does Step 2b, `/design` Step 1b repeats it) becomes one read in `/design`.
+
+### v2.2 Triage change kind → Branch 1 mode (WS2 D5)
+
+Branch 1 has four modes; each converges on a design spec but the dialogue shape differs. Ask the user (via `AskUserQuestion`) which mode fits, with the default inferred from the request type:
+
+| Request type | Branch 1 mode | Provider skill |
+|---|---|---|
+| New or changed behaviour | **brainstorm** | `superpowers:brainstorming` |
+| Bug fix | **investigate** | `superpowers:systematic-debugging` |
+| Refactor (behaviour preserved) | **coverage-baseline** | (no external skill — establish/verify test coverage first; no behaviour brainstorm) |
+| Well-defined or docs-only | **none** | (no dialogue — author a thin design spec directly) |
+
+**Precedence on ambiguity:** present the inferred default and offer the other three as alternatives. If the user picks **none** for a change that isn't trivially well-defined, push back once and confirm — "none" skips the design dialogue entirely; misusing it for a non-trivial change loses the value of Branch 1.
+
+### v2.3 Dispatch Branch 1
+
+Invoke the mode's provider skill (if any) with a brief that includes:
+
+- The user's original request (from `$ARGUMENTS`)
+- The SURVEY output (relevant governed specs, architecture excerpts)
+- Naming convention: design spec lands at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
+- Template: for modes where this skill authors the spec directly (investigate, coverage-baseline, none), use `docs/templates/spec.md` as the structural skeleton so `/consolidate` at `/finish` can harvest from it correctly
+
+For **brainstorm** mode, the provider's output is the design spec. For **investigate** mode, the provider's output is a structured root-cause analysis; transcribe it into the design spec template. For **coverage-baseline** mode, run the project's test suite, identify coverage gaps in the refactor's blast radius, and document them in the design spec's Behaviour section as "tests to add before the refactor begins". For **none** mode, author the design spec directly from the request — Purpose + Behaviour + a single "decision: change is trivially well-defined, no Branch 1 dialogue needed" entry.
+
+All four modes produce a design spec at the conventional path. The spec is mandatory under v2 — never skip it (D4: "the everything-else pre-build **always** produces an ephemeral design spec").
+
+### v2.4 Plan fold-in (invoke `superpowers:writing-plans` internally)
+
+Under v2, planning is part of `/design`, not a separate step. After the design spec is written, invoke `superpowers:writing-plans` with a brief that includes:
+
+- The design spec path (the writing-plans skill will read it)
+- Project plan convention: `docs/plans/YYYY-MM-DD-<topic>.md` (NOT the writing-plans default `docs/superpowers/plans/`)
+- Test taxonomy from `CLAUDE.md ## Testing`
+- Workflow stage: under v2, plans end at `/finish`; no "promote spec to active" step (status flips automatically at `/consolidate`)
+
+After writing-plans returns, verify the plan landed at `docs/plans/`, not `docs/superpowers/plans/`. If it landed in the wrong place, move it with `git mv` (preserves history) and update the `plan:` field in the design spec frontmatter to match the new path — `/build` reads that field, and a stale `plan:` pointer causes a "plan path not found" error.
+
+### v2.5 Exit to `/build`
+
+Both the design spec and the plan now exist. Hand off to `/build` with the design spec path:
+
+```
+/build docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md
+```
+
+`/build` reads the S2 frontmatter on the design spec and dispatches accordingly. The design spec author (this skill, in v2.3 / v2.4) is responsible for populating ALL five required fields — `/build`'s gate is strict and rejects any missing field. Use this schema (from WS1 D3):
+
+```yaml
+related-issue: <N>
+triage: everything-else          # agent-target | everything-else
+implementation-mode: direct      # direct | executing-plans | subagent-driven-development
+plan: docs/plans/YYYY-MM-DD-<topic>.md   # relative path | null
+test-tiers:
+  unit: yes                      # yes | n/a — <reason>
+  contract: n/a — no shared definitions touched
+  integration: yes
+```
+
+Do not auto-invoke `/build`. The user (or the calling skill) drives the next stage.
 
 ## Important
 
