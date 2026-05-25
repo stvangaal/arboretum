@@ -23,6 +23,16 @@ LAYER="${LAYER:-0}"
 
 output=""
 
+# ── Dogfood banner ───────────────────────────────────────────────────
+# Gated by `dogfood: true` in .arboretum.yml. This hook syncs to the
+# public arboretum plugin, but .arboretum.yml is sync-excluded — so the
+# flag (and this line) only fire in arboretum-dev, not in downstream
+# projects that install arboretum.
+DOGFOOD=$(sed -n 's/^dogfood:[[:space:]]*\([a-zA-Z]*\).*/\1/p' "$CONFIG" 2>/dev/null || true)
+if [ "$DOGFOOD" = "true" ]; then
+  output+="[Dogfood] arboretum-dev runs its own in-development tooling — validate changes here before they sync to public."
+fi
+
 # ── Check if governed documents exist ────────────────────────────────
 
 missing=()
