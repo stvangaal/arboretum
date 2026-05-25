@@ -10,6 +10,7 @@
 #   4. branch != main, plan with mid %       → phase = mid-implementation, N remain
 #   5. branch != main, plan with 100% checked → phase = ready for /finish
 #   6. branch == main                         → section omitted
+#   7. dogfood: true in .arboretum.yml        → [Dogfood] line appears on its own line
 #
 # Usage: bash scripts/_smoke-test-session-start-cycle.sh
 # Exit 0 if all cases pass, 1 otherwise.
@@ -166,12 +167,34 @@ case6() {
   ok "case6: branch == main → section omitted"
 }
 
+# ── Case 7: dogfood: true → [Dogfood] line appears, isolated from next ──
+
+case7() {
+  local fix; fix=$(new_fixture case7 "feat/foo")
+  # Overwrite the fixture's .arboretum.yml to enable dogfood mode AND
+  # remove a governed document so the [Spec Workflow] block fires,
+  # exercising the newline-separator boundary the dogfood line introduces.
+  cat > "$fix/.arboretum.yml" <<'EOF'
+layer: 0
+dogfood: true
+EOF
+  rm -f "$fix/docs/ARCHITECTURE.md"
+  local out; out=$(run_hook "$fix")
+  echo "$out" | grep -q "\[Dogfood\]"                 || fail "case7: missing [Dogfood] line" "$out"
+  echo "$out" | grep -q "\[Spec Workflow\] Missing"   || fail "case7: missing [Spec Workflow] line" "$out"
+  # Boundary: the two banner sections must be on separate lines.
+  echo "$out" | grep -q "\[Dogfood\].*\[Spec Workflow\]" \
+    && fail "case7: [Dogfood] and [Spec Workflow] concatenated on one line" "$out"
+  ok "case7: dogfood enabled → [Dogfood] line appears on its own line"
+}
+
 case1
 case2
 case3
 case4
 case5
 case6
+case7
 
 echo
 echo "All cycle-state smoke cases passed."

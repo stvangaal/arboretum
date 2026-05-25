@@ -42,6 +42,7 @@ missing=()
 [ ! -d "$DEFS_DIR" ] && missing+=("docs/definitions/")
 
 if [ ${#missing[@]} -gt 0 ]; then
+  [ -n "$output" ] && output+=$'\n'
   output+="[Spec Workflow] Missing governed documents: ${missing[*]}."
   output+=$'\n'"  → Why: The document chain must exist top-down before specs can be implemented."
   output+=$'\n'"    Create them in order: ARCHITECTURE.md → definitions/ → specs → REGISTER.md → contracts.yaml. See workflows/README.md."
