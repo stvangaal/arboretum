@@ -22,6 +22,9 @@ done
 echo "=== Cross-reference validation ==="
 bash scripts/validate-cross-refs.sh || fail=1
 
+echo "=== Contract coverage validation ==="
+bash scripts/validate-coverage-manifest.sh || fail=1
+
 echo "=== Health check (non-blocking) ==="
 bash scripts/health-check.sh "$ROOT" || echo "(health-check reported issues — non-blocking)"
 
