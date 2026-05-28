@@ -4,6 +4,7 @@ name: {{spec-name}}
 status: draft
 owner: {{group-name or "architecture"}}
 owns: []
+# governs-narrative: docs/ARCHITECTURE.md §X.Y    # optional; required when status=active and owns:[] — cites the narrative section this spec governs inside a shared document
 ---
 
 # {{Spec Name}}

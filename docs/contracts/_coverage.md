@@ -13,7 +13,7 @@
 | scripts/generate-coverage.sh | MISSING | — |
 | scripts/generate-register.sh | docs/contracts/register-pipeline.contract.md | full |
 | scripts/handoff-commit-wip.sh | MISSING | — |
-| scripts/health-check.sh | MISSING | — |
+| scripts/health-check.sh | docs/contracts/health-check.contract.md | full |
 | scripts/log-stage.sh | MISSING | — |
 | scripts/parse-plan-checkboxes.sh | MISSING | — |
 | scripts/post-handoff-comment.sh | MISSING | — |

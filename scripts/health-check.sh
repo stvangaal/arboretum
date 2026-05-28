@@ -850,15 +850,57 @@ while IFS='|' read -r _ spec status _ owns _; do
     fi
   else
     # Valid status. Specific classes:
-    # - active-state spec with no owned files: info, not drift. A spec
-    #   can legitimately be active with owns: [] when its deliverable is
-    #   a section inside another spec's file (e.g. an ARCHITECTURE.md
-    #   section). A perpetual ✗ here would erode signal, so surface it
-    #   as a non-failing · line.
+    # - active-state spec with no owned files: legitimate ONLY when the
+    #   spec declares governs-narrative:. The field cites a narrative
+    #   section the spec governs inside a shared document (e.g. an
+    #   ARCHITECTURE.md section). Without governs-narrative:, the
+    #   conjunction is a write-time contradiction (#176; closed by
+    #   docs/contracts/health-check.contract.md §HC-4).
     # - stale-state spec (drift previously recorded, awaits /consolidate)
     if _in_array "$status" "${STATUS_ACTIVE_STATES[@]}"; then
       if [ -z "$owns" ] || [ "$owns" = "(none)" ] || [ "$owns" = "—" ]; then
-        info "$spec: status=$status but owns no files"
+        # Read governs-narrative: from spec frontmatter (between the
+        # first two `---` markers). Uses awk so false matches inside
+        # the spec's prose body don't trip the check. No `local` —
+        # this block is inside a top-level while loop, not a function.
+        #
+        # The two `sub()` calls implement the YAML scalar value
+        # extraction: first strip the key + leading whitespace, then
+        # strip any trailing `# comment` (YAML inline comment) plus
+        # any whitespace before it. Without the second strip, a spec
+        # with `governs-narrative: # TODO` would extract "# TODO" and
+        # bypass the strict-warn branch even though YAML semantics
+        # make that value empty (Codex caught this in PR #356 review).
+        governs_narrative=""
+        if [ -f "$spec_file" ]; then
+          governs_narrative=$(awk '
+            /^---[[:space:]]*$/ { c++; if (c == 2) exit; next }
+            c == 1 && /^governs-narrative:/ {
+              sub(/^governs-narrative:[[:space:]]*/, "")
+              sub(/[[:space:]]*#.*$/, "")
+              print
+              exit
+            }
+          ' "$spec_file")
+          # Trim surrounding whitespace with sed (NOT xargs — xargs treats
+          # quotes as shell-quoting and exits non-zero on values like
+          # `Owner's Guide`, which under `set -euo pipefail` aborts the
+          # whole script. Codex caught this in PR #356 round-3 review.)
+          governs_narrative=$(printf '%s' "$governs_narrative" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          # Normalize YAML null spellings: a value of literal `null` or `~`
+          # is YAML-semantically empty. Without this normalization, a spec
+          # with `governs-narrative: null` would bypass the strict-warn
+          # branch (Codex round-3 finding, same bypass class as the
+          # inline-comment case round 2 fixed).
+          case "$governs_narrative" in
+            "null"|"~") governs_narrative="" ;;
+          esac
+        fi
+        if [ -n "$governs_narrative" ]; then
+          info "$spec: status=$status but owns no files (governs narrative: $governs_narrative)"
+        else
+          warn "$spec: status=$status but owns no files AND no governs-narrative declared — contradiction (see docs/contracts/health-check.contract.md §HC-4)"
+        fi
       fi
     elif [ -n "$STATUS_STALE_STATE" ] && [ "$status" = "$STATUS_STALE_STATE" ]; then
       warn "$spec: status=$status — drift recorded; run /consolidate to reconcile"
