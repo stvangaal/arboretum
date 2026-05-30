@@ -16,8 +16,12 @@ B=baaa; O=oooo; T=tttt   # distinct shas
 
 check "framework update, untouched local" overwrite-safe "$(classify_file "$B" "$B" "$T" yes yes)"
 check "nothing changed"                    unchanged      "$(classify_file "$B" "$B" "$B" yes yes)"
-check "local edit, no framework change"    keep-local     "$(classify_file "$B" "$O" "$B" yes yes)"
-check "both changed, diverged"             conflict       "$(classify_file "$B" "$O" "$T" yes yes)"
+# Plugin-wins policy (#394): for managed framework files present in both tree and
+# plugin, the plugin copy always wins — a divergent local copy is overwrite-local
+# (applied, discards local edits; git is the recovery net), never preserved as a
+# silent keep-local or surfaced as an edit conflict.
+check "local edit, plugin unchanged"       overwrite-local "$(classify_file "$B" "$O" "$B" yes yes)"
+check "both changed, diverged"             overwrite-local "$(classify_file "$B" "$O" "$T" yes yes)"
 check "both changed, converged"            converged      "$(classify_file "$B" "$O" "$O" yes yes)"
 
 # Fix 2: base-aware presence-mismatch cases
@@ -92,13 +96,15 @@ check "apply: foo took theirs"  v2 "$(cat "$PRJ/scripts/foo.sh")"
 check "apply: new added"        new "$(cat "$PRJ/scripts/new.sh")"
 check "apply: manifest bumped"  0.2.0 "$(PROJECT_DIR="$PRJ" bash "$SYNC" --read-manifest-version)"
 
-# bootstrap on a pre-manifest project marks divergent files as conflict
+# bootstrap on a pre-manifest project gives divergent files no base; under the
+# plugin-wins policy (#394) the next --plan classifies them overwrite-local (plugin
+# wins) rather than conflict — the local fork is replaced, not surfaced for resolution.
 PRJ2="$TMP/proj2"; mkdir -p "$PRJ2/scripts"
 echo 'local-edit' > "$PRJ2/scripts/foo.sh"   # differs from plugin v2
 PROJECT_DIR="$PRJ2" UPGRADE_PLUGIN_ROOT="$PLG" UPGRADE_MANAGED_GLOBS='scripts/*.sh' \
   UPGRADE_PLUGIN_VERSION=0.2.0 bash "$SYNC" --bootstrap-manifest >/dev/null
 nextplan="$(PROJECT_DIR="$PRJ2" UPGRADE_PLUGIN_ROOT="$PLG" UPGRADE_MANAGED_GLOBS='scripts/*.sh' bash "$SYNC" --plan)"
-check "bootstrap: divergent => conflict" conflict "$(echo "$nextplan" | jq -r '.actions["scripts/foo.sh"]')"
+check "bootstrap: divergent => overwrite-local" overwrite-local "$(echo "$nextplan" | jq -r '.actions["scripts/foo.sh"]')"
 
 # Fix 6: arity check — --read-manifest-sha with no path arg must exit 2
 ARITY_PRJ="$TMP/arity-proj"
@@ -107,28 +113,65 @@ arity_exit=0
 ( PROJECT_DIR="$ARITY_PRJ" bash "$SYNC" --read-manifest-sha ) 2>/dev/null || arity_exit=$?
 check "arity: --read-manifest-sha missing arg exits 2" 2 "$arity_exit"
 
-# Fix 9: version must NOT be bumped when plan contains conflict entries
+# Fix 9: version must NOT be bumped while UNRESOLVED items remain. Under the
+# plugin-wins policy (#394) a local edit is no longer an unresolved conflict — it
+# is overwrite-local and gets applied — so the gate is exercised with a
+# report-removed item (tracked file the plugin dropped; never auto-deleted).
 PRJ9="$TMP/proj9"
 mkdir -p "$PRJ9/scripts" "$PRJ9/.arboretum"
 PLG9="$TMP/plugin9"
 mkdir -p "$PLG9/scripts"
-# foo.sh: base tracks old content; plugin changed it; local is different too → conflict
-echo 'base'     > "$PRJ9/scripts/foo.sh"
-echo 'plugin'   > "$PLG9/scripts/foo.sh"
-# safe.sh: base matches current; plugin changed → overwrite-safe
+# gone.sh: tracked in manifest (base set), present locally, ABSENT from plugin → report-removed.
+echo 'gone'     > "$PRJ9/scripts/gone.sh"
+# safe.sh: base matches current; plugin changed → overwrite-safe (an applied action).
 echo 'safe_old' > "$PRJ9/scripts/safe.sh"
 echo 'safe_new' > "$PLG9/scripts/safe.sh"
-# Seed manifest: foo.sh base = "base" content hash, safe.sh base = "safe_old" hash
 PROJECT_DIR="$PRJ9" bash "$SYNC" --write-manifest-entry \
-  scripts/foo.sh 0.1.0 "$(shasum -a 256 "$PRJ9/scripts/foo.sh" | awk '{print $1}')"
-# Now diverge foo.sh locally (conflict: local differs, plugin also differs from base)
-echo 'local-edit' > "$PRJ9/scripts/foo.sh"
+  scripts/gone.sh 0.1.0 "$(shasum -a 256 "$PRJ9/scripts/gone.sh" | awk '{print $1}')"
 PROJECT_DIR="$PRJ9" bash "$SYNC" --write-manifest-entry \
   scripts/safe.sh 0.1.0 "$(shasum -a 256 "$PRJ9/scripts/safe.sh" | awk '{print $1}')"
 old_v="$(PROJECT_DIR="$PRJ9" bash "$SYNC" --read-manifest-version)"
+plan9="$(PROJECT_DIR="$PRJ9" UPGRADE_PLUGIN_ROOT="$PLG9" UPGRADE_MANAGED_GLOBS='scripts/*.sh' bash "$SYNC" --plan)"
+check "report-removed surfaced for dropped tracked file" report-removed "$(echo "$plan9" | jq -r '.actions["scripts/gone.sh"]')"
 PROJECT_DIR="$PRJ9" UPGRADE_PLUGIN_ROOT="$PLG9" UPGRADE_MANAGED_GLOBS='scripts/*.sh' \
   UPGRADE_PLUGIN_VERSION=0.2.0 bash "$SYNC" --apply >/dev/null
 new_v="$(PROJECT_DIR="$PRJ9" bash "$SYNC" --read-manifest-version)"
-check "version not bumped when conflicts remain" "$old_v" "$new_v"
+check "version not bumped when unresolved (report-removed) remains" "$old_v" "$new_v"
+
+# Plugin-wins apply: a divergent local edit (overwrite-local) IS applied (takes
+# plugin) and, being resolved, does NOT block the version bump.
+PRJ10="$TMP/proj10"; PLG10="$TMP/plugin10"
+mkdir -p "$PRJ10/scripts" "$PRJ10/.arboretum" "$PLG10/scripts"
+echo 'edited-local' > "$PRJ10/scripts/foo.sh"   # ours
+echo 'plugin-new'   > "$PLG10/scripts/foo.sh"   # theirs
+# Record a base distinct from both ours and theirs → ours != base, theirs != base → overwrite-local.
+PROJECT_DIR="$PRJ10" bash "$SYNC" --write-manifest-entry scripts/foo.sh 0.1.0 "baseline_sha_distinct"
+plan10="$(PROJECT_DIR="$PRJ10" UPGRADE_PLUGIN_ROOT="$PLG10" UPGRADE_MANAGED_GLOBS='scripts/*.sh' bash "$SYNC" --plan)"
+check "overwrite-local in plan" overwrite-local "$(echo "$plan10" | jq -r '.actions["scripts/foo.sh"]')"
+PROJECT_DIR="$PRJ10" UPGRADE_PLUGIN_ROOT="$PLG10" UPGRADE_MANAGED_GLOBS='scripts/*.sh' \
+  UPGRADE_PLUGIN_VERSION=0.3.0 bash "$SYNC" --apply >/dev/null
+check "overwrite-local applied (took plugin)" plugin-new "$(cat "$PRJ10/scripts/foo.sh")"
+check "version bumped when only overwrite-local remains" 0.3.0 "$(PROJECT_DIR="$PRJ10" bash "$SYNC" --read-manifest-version)"
+
+# #407: removal detection is BLIND on an empty manifest baseline. --plan must
+# report removal_detection:"inconclusive" (not silently imply "zero removals")
+# until a baseline exists, then "active" once files are tracked.
+PRJ_RD="$TMP/proj-rd"; PLG_RD="$TMP/plugin-rd"
+mkdir -p "$PRJ_RD/scripts" "$PRJ_RD/.arboretum" "$PLG_RD/scripts"
+echo 'x' > "$PLG_RD/scripts/foo.sh"
+# empty manifest (no tracked files) → inconclusive
+jq -n '{schema_version:1, framework_version:null, updated_at:null, files:{}}' \
+  > "$PRJ_RD/.arboretum/install-manifest.json"
+plan_rd="$(PROJECT_DIR="$PRJ_RD" UPGRADE_PLUGIN_ROOT="$PLG_RD" UPGRADE_MANAGED_GLOBS='scripts/*.sh' bash "$SYNC" --plan)"
+check "removal_detection inconclusive on empty manifest" inconclusive "$(echo "$plan_rd" | jq -r '.removal_detection')"
+# absent manifest → also inconclusive (first-ever upgrade, never bootstrapped)
+PRJ_RD0="$TMP/proj-rd0"; mkdir -p "$PRJ_RD0/scripts"
+echo 'x' > "$PRJ_RD0/scripts/foo.sh"
+plan_rd0="$(PROJECT_DIR="$PRJ_RD0" UPGRADE_PLUGIN_ROOT="$PLG_RD" UPGRADE_MANAGED_GLOBS='scripts/*.sh' bash "$SYNC" --plan)"
+check "removal_detection inconclusive on absent manifest" inconclusive "$(echo "$plan_rd0" | jq -r '.removal_detection')"
+# populated manifest (a tracked file) → active
+PROJECT_DIR="$PRJ_RD" bash "$SYNC" --write-manifest-entry scripts/foo.sh 0.1.0 "$(shasum -a 256 "$PLG_RD/scripts/foo.sh"|awk '{print $1}')"
+plan_rd2="$(PROJECT_DIR="$PRJ_RD" UPGRADE_PLUGIN_ROOT="$PLG_RD" UPGRADE_MANAGED_GLOBS='scripts/*.sh' bash "$SYNC" --plan)"
+check "removal_detection active once baseline exists" active "$(echo "$plan_rd2" | jq -r '.removal_detection')"
 
 exit "$fail"

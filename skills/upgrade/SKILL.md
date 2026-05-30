@@ -1,7 +1,7 @@
 ---
 name: upgrade
 owner: project-upgrade
-description: Re-sync vendored framework files in an already-initialized arboretum project from the installed plugin. Classifies each file against the install-manifest (add/overwrite-safe/keep-local/conflict/report-only), applies the safe actions, surfaces conflicts, and verifies. Use when a project is behind the framework (e.g. missing a new hook, script, or template).
+description: Re-sync vendored framework files in an already-initialized arboretum project from the installed plugin. Classifies each file against the install-manifest (add/overwrite-safe/overwrite-local/keep-local/conflict/report-only) under a plugin-wins policy — adopters do not fork framework code — applies the safe actions, surfaces conflicts, and verifies. Use when a project is behind the framework (e.g. missing a new hook, script, or template).
 ---
 
 # Upgrade
@@ -39,13 +39,23 @@ _SYNC="${CLAUDE_PLUGIN_ROOT}/scripts/upgrade-sync.sh"
    If it exits 2 with "plugin not found", relay the `/plugin install arboretum`
    guidance and stop. If the manifest is missing/malformed, run
    `bash "$_SYNC" --bootstrap-manifest` first, then re-plan.
+   Read `.removal_detection`: if `inconclusive`, the manifest has no baseline yet,
+   so removal detection is **disabled** — say so explicitly when summarizing; do
+   NOT present the plan as "zero removals" (#407). Running `--bootstrap-manifest`
+   (or a first `--apply`) establishes the baseline so later runs report `active`.
 2. **Present** the plan grouped by action:
    - `add` / `overwrite-safe` / `converged` — will be applied (safe; reversible via git).
-   - `conflict` — for each, show `git diff --no-index <tree> <plugin>` and DEFAULT to
-     preserve-local. Only overwrite a conflicted file on explicit user say-so.
+   - `overwrite-local` — will be applied: the plugin copy **replaces a divergent local
+     edit** to a framework file (plugin-wins policy #394). For each, show
+     `git diff --no-index <tree> <plugin>` so the user sees what local edit is discarded.
+     git is the recovery net; flag these distinctly from clean `overwrite-safe` updates.
+   - `keep-local` / `conflict` — deletion cases (a tracked framework file deleted
+     locally). `keep-local`: plugin unchanged, deletion respected. `conflict`: plugin
+     changed it since — show the diff and ask before re-adding.
    - `report-only` (`CLAUDE.md`, `PRINCIPLES.md`) — show the framework diff; never edit.
-   - `report-removed` — note the framework dropped it; never auto-delete.
-   If `actions` is empty: report "already current" and stop.
+   - `report-removed` — note the framework dropped it; never auto-delete (only when
+     `removal_detection` is `active`).
+   If `actions` is empty: report "already current" (noting removal-detection status) and stop.
 3. **Apply:** `bash "$_SYNC" --apply` (writes safe actions, merges the
    settings allowlist additively, bumps the manifest when no conflicts remain).
    For any conflict the user chose to take, copy that file from `plugin_root` manually
@@ -53,7 +63,10 @@ _SYNC="${CLAUDE_PLUGIN_ROOT}/scripts/upgrade-sync.sh"
 4. **Verify:** regenerate the register (`bash scripts/generate-register.sh`) and run
    `bash scripts/health-check.sh`; surface stale version pins. Leave everything
    uncommitted for git review — do NOT commit on the user's behalf.
-5. Summarize: N added, N updated, N conflicts surfaced, N report-only.
+5. Summarize: N added, N updated (overwrite-safe), N local edits replaced
+   (overwrite-local), N conflicts surfaced, N report-only. State the
+   removal-detection status: `active` → "N stale files flagged" / "none stale";
+   `inconclusive` → "removal detection disabled (no manifest baseline yet)".
 
 ## De-register migration (activates once a hook is plugin-provided)
 If a path recorded in the manifest is now provided by the plugin as a plugin-level

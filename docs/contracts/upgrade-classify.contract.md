@@ -1,6 +1,6 @@
 ---
 seam: upgrade-classify
-version: 1.0
+version: 1.1
 producer-type: script
 consumer-type: script
 consumes:
@@ -27,11 +27,13 @@ A side-effect-free library, sourced (never executed directly). It defines one fu
 
 The classification is base-aware to avoid two historical bugs: untracked user-owned files (empty base) absent from the plugin are left alone rather than flagged removed, and a tracked file the user intentionally deleted is not silently re-added. The function performs no I/O beyond the single `echo`.
 
+Under the **plugin-wins policy** (#394), a managed framework file present in **both** the tree and the plugin always resolves to the plugin copy: a divergent local copy is `overwrite-local` (applied, discards the local edit), never preserved (`keep-local`) or surfaced as an edit `conflict`. Plugin-wins governs **edits**; `keep-local`/`conflict` survive only as **deletion** cases (a tracked file deleted locally).
+
 ## Consumer
 
 Consumer-type: `script`. One downstream consumer:
 
-- **`scripts/upgrade-sync.sh`** sources the lib (`source "$HERE/lib/upgrade-classify.sh"`, ~line 8) and calls `action="$(classify_file "$base" "$ours" "$theirs" "$in_plugin" "$in_tree")"` (~line 121) inside its per-file loop. It then routes on the token: `unchanged` files are skipped; everything else is recorded into the actions/policy JSON maps that drive the upgrade plan (add / overwrite-safe / keep-local / conflict / converged / report-removed).
+- **`scripts/upgrade-sync.sh`** sources the lib (`source "$HERE/lib/upgrade-classify.sh"`, ~line 8) and calls `action="$(classify_file "$base" "$ours" "$theirs" "$in_plugin" "$in_tree")"` (~line 121) inside its per-file loop. It then routes on the token: `unchanged` files are skipped; everything else is recorded into the actions/policy JSON maps that drive the upgrade plan (add / overwrite-safe / overwrite-local / keep-local / conflict / converged / report-removed).
 
 **Consumer obligations:**
 
@@ -55,19 +57,20 @@ Consumer-type: `script`. One downstream consumer:
 
 - stdout: exactly one action token, one of the closed set:
   - **`add`** — in plugin, not in tree, never tracked (empty base) → genuinely new from plugin.
-  - **`keep-local`** — (a) in plugin not in tree, tracked, plugin unchanged vs base (user deleted it intentionally); or (b) present both sides, ours diverged from base but theirs == base (user-local edit, plugin idle).
-  - **`conflict`** — (a) in plugin not in tree, tracked, plugin changed vs base; or (b) present both sides, ours and theirs both diverged from base and from each other.
+  - **`overwrite-safe`** — present both sides, ours == base but theirs != base (local untouched; only the plugin moved → clean update).
+  - **`overwrite-local`** — present both sides, ours != theirs and ours != base (local diverged from baseline — edited, or plugin idle but locally edited). Plugin-wins (#394): applied like `overwrite-safe`, but named distinctly because it **discards the local edit**.
   - **`converged`** — present both sides, ours and theirs both diverged from base but are now equal to each other.
-  - **`overwrite-safe`** — present both sides, ours == base but theirs != base (only the plugin moved).
+  - **`keep-local`** — in plugin, not in tree, tracked, plugin unchanged vs base (user deleted it intentionally; deletion respected). Deletion-only under plugin-wins.
+  - **`conflict`** — in plugin, not in tree, tracked, plugin changed vs base (plugin moved a file the user deleted). Deletion-only under plugin-wins.
   - **`unchanged`** — present both sides with ours == theirs == base; OR not in plugin, in tree, never tracked (empty base — user-owned, leave alone).
   - **`report-removed`** — not in plugin, in tree, and previously tracked (non-empty base).
 - Exit status: `0` (the function always echoes and returns; it never errors on valid inputs).
 
 ### Invariants
 
-- **Single-token output.** Exactly one of `{add, keep-local, conflict, converged, overwrite-safe, unchanged, report-removed}` is echoed — never empty, never two tokens.
-- **Base-aware presence rules.** Absence-from-plugin maps to `report-removed` only when base is non-empty; an empty-base file absent from the plugin is `unchanged` (user-owned, untouched). Absence-from-tree with empty base is `add`; with non-empty base it is `keep-local` (plugin idle) or `conflict` (plugin moved).
-- **Both-present precedence.** When both `IN_PLUGIN` and `IN_TREE` are `yes`: ours==base → (`unchanged` if theirs==base else `overwrite-safe`); ours!=base → (`keep-local` if theirs==base; else `converged` if ours==theirs; else `conflict`).
+- **Single-token output.** Exactly one of `{add, overwrite-safe, overwrite-local, keep-local, conflict, converged, unchanged, report-removed}` is echoed — never empty, never two tokens.
+- **Base-aware presence rules.** Absence-from-plugin maps to `report-removed` only when base is non-empty; an empty-base file absent from the plugin is `unchanged` (user-owned, untouched). Absence-from-tree with empty base is `add`; with non-empty base it is `keep-local` (plugin idle) or `conflict` (plugin moved) — the deletion cases.
+- **Both-present precedence (plugin-wins, #394).** When both `IN_PLUGIN` and `IN_TREE` are `yes`: ours==theirs → (`unchanged` if ours==base else `converged`); ours!=theirs → (`overwrite-safe` if ours==base else `overwrite-local`). A divergent local copy never survives as `keep-local`/`conflict` — those are reserved for the absence-from-tree (deletion) cases above.
 - **Purity.** No file reads/writes, no network, no global-state mutation — output depends solely on the five args.
 
 ## Test surface
@@ -77,8 +80,9 @@ Consumer-type: `script`. One downstream consumer:
 - **UC-3:** `conflict` (plugin moved on deleted file) — `classify_file SHA "" NEW yes no`.
 - **UC-4:** `report-removed` — `classify_file SHA SHA "" no yes` (tracked, vanished from plugin).
 - **UC-5:** `unchanged` (untracked, plugin-absent) — `classify_file "" SHA "" no yes` (empty base, user-owned).
-- **UC-6:** both-present matrix: `unchanged` (`A A A`), `overwrite-safe` (`A A B`), `keep-local` (`A B A`), `converged` (`A B B`), `conflict` (`A B C`).
+- **UC-6:** both-present matrix (plugin-wins): `unchanged` (`A A A`), `overwrite-safe` (`A A B`), `overwrite-local` (`A B A` — local edit, plugin idle), `converged` (`A B B`), `overwrite-local` (`A B C` — both diverged).
 
 ## Versioning
 
+- **1.1** (2026-05-30) — plugin-wins policy (#394). Adds the `overwrite-local` token: a divergent local copy of a framework file present in both tree and plugin now resolves to plugin-wins (applied, discards local edit) instead of `keep-local` (local edit, plugin idle) or `conflict` (both diverged). `keep-local`/`conflict` become deletion-only. Both-present precedence simplified to ours-vs-theirs first. UC-6 `A B A` and `A B C` now expect `overwrite-local`.
 - **1.0** (2026-05-30) — initial contract. Helper shape as of `scripts/lib/upgrade-classify.sh` on `main`. Issue #303 (WS5 PR 7a).

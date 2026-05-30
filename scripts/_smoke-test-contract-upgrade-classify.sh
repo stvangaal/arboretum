@@ -42,11 +42,12 @@ expect UC-3 conflict   "$A" "" "$B" yes no
 expect UC-4 report-removed "$A" "$A" "" no yes
 # UC-5 — unchanged: untracked user-owned, plugin-absent
 expect UC-5 unchanged  "" "$A" "" no yes
-# UC-6 — both-present matrix
-expect "UC-6 unchanged"      unchanged      "$A" "$A" "$A" yes yes
-expect "UC-6 overwrite-safe" overwrite-safe "$A" "$A" "$B" yes yes
-expect "UC-6 keep-local"     keep-local     "$A" "$B" "$A" yes yes
-expect "UC-6 converged"      converged      "$A" "$B" "$B" yes yes
-expect "UC-6 conflict"       conflict       "$A" "$B" "$C" yes yes
+# UC-6 — both-present matrix (plugin-wins #394: a divergent local copy is
+# overwrite-local, not keep-local/conflict — those are deletion-only).
+expect "UC-6 unchanged"       unchanged       "$A" "$A" "$A" yes yes
+expect "UC-6 overwrite-safe"  overwrite-safe  "$A" "$A" "$B" yes yes
+expect "UC-6 overwrite-local-idle" overwrite-local "$A" "$B" "$A" yes yes
+expect "UC-6 converged"       converged       "$A" "$B" "$B" yes yes
+expect "UC-6 overwrite-local-diverged" overwrite-local "$A" "$B" "$C" yes yes
 
 [ "$fail" = 0 ] && echo "upgrade-classify contract: ALL PASS" || exit 1

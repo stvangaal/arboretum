@@ -6,12 +6,15 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 PLG="$TMP/p"; PRJ="$TMP/j"; mkdir -p "$PLG/scripts" "$PRJ/scripts" "$PRJ/.arboretum"
 echo a > "$PLG/scripts/x.sh"
 plan="$(PROJECT_DIR="$PRJ" UPGRADE_PLUGIN_ROOT="$PLG" UPGRADE_MANAGED_GLOBS='scripts/*.sh' bash "$SYNC" --plan)"
-# plan JSON must carry the three contracted top-level keys
-for k in plugin_root actions policy; do
+# plan JSON must carry the four contracted top-level keys
+for k in plugin_root actions policy removal_detection; do
   echo "$plan" | jq -e "has(\"$k\")" >/dev/null || { echo "FAIL: plan missing $k"; fail=1; }
 done
+# removal_detection is a closed enum
+rd="$(echo "$plan" | jq -r '.removal_detection')"
+case "$rd" in active|inconclusive) ;; *) echo "FAIL: removal_detection outside enum: $rd"; fail=1 ;; esac
 # every action value is in the closed enum
-bad="$(echo "$plan" | jq -r '.actions[]' | grep -Evx 'add|overwrite-safe|keep-local|conflict|converged|unchanged|report-removed|report-only' || true)"
+bad="$(echo "$plan" | jq -r '.actions[]' | grep -Evx 'add|overwrite-safe|overwrite-local|keep-local|conflict|converged|unchanged|report-removed|report-only' || true)"
 [ -z "$bad" ] || { echo "FAIL: action outside enum: $bad"; fail=1; }
 [ "$fail" = 0 ] && echo "ok: contract upgrade-sync"
 exit "$fail"

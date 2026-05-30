@@ -125,8 +125,16 @@ cmd_plan() {
       policy_map="$(echo "$policy_map" | jq --arg k "$rel" --arg v "$policy" '. + {($k):$v}')"
     done
   done < <(managed_globs)
+  # #407: removal detection diffs manifest-tracked files against the plugin. With
+  # no baseline (empty/absent manifest) it has nothing to diff and is DISABLED —
+  # report that as "inconclusive" rather than letting the caller imply "zero
+  # removals". Read-only: jq on a missing manifest errors → treated as 0 tracked.
+  local tracked removal_detection
+  tracked="$(jq -r '.files | length' "$MANIFEST" 2>/dev/null || echo 0)"
+  [ "${tracked:-0}" -gt 0 ] && removal_detection=active || removal_detection=inconclusive
   jq -n --argjson a "$actions" --argjson p "$policy_map" --arg root "$proot" \
-        '{plugin_root:$root, actions:$a, policy:$p}'
+        --arg rd "$removal_detection" \
+        '{plugin_root:$root, actions:$a, policy:$p, removal_detection:$rd}'
 }
 
 plugin_version() { [ -n "${UPGRADE_PLUGIN_VERSION:-}" ] && { echo "$UPGRADE_PLUGIN_VERSION"; return; }
@@ -157,7 +165,7 @@ cmd_apply() {
   # surfaced by the skill and never auto-applied by the helper.
   while IFS=$'\t' read -r rel action; do
     case "$action" in
-      add|overwrite-safe|converged)
+      add|overwrite-safe|overwrite-local|converged)
         if [ -f "$proot/$rel" ]; then
           mkdir -p "$PROJECT_DIR/$(dirname "$rel")"
           if cp "$proot/$rel" "$PROJECT_DIR/$rel"; then
@@ -191,7 +199,8 @@ cmd_bootstrap() {
       is_excluded "$rel" && continue
       [ -f "$proot/$rel" ] || continue
       # Only record a base when tree == plugin; divergent files get NO base
-      # entry, so the next --plan classifies them as conflict (unknown base).
+      # entry, so the next --plan classifies them as overwrite-local (unknown
+      # base + differs from plugin → plugin-wins under the #394 policy).
       if [ "$(sha "$PROJECT_DIR/$rel")" = "$(sha "$proot/$rel")" ]; then
         write_manifest_entry "$rel" "$v" "$(sha "$proot/$rel")"
       fi
