@@ -123,7 +123,7 @@ grep -rn "<output-filename>" scripts/ skills/ .Codex/hooks/ docs/templates/
 
 Test the round trip locally before pushing: regen the artifact, then run any consumer against it, and confirm clean output. A passing run of the modified script alone is necessary but not sufficient evidence the change is done.
 
-The same discipline applies to any implicit contract embedded across multiple surfaces — including the spec-status enum, which currently has known active drift between the `draft/active/stale` enum used by scripts, hooks, and shipped skills, and the `draft/ready/in-progress/implemented` enum used by `workflows/README.md`, several spec frontmatters, and the `rule-flow-engine` example. Resolution is tracked in #140; until it's resolved, follow the convention of the surface you're editing rather than introducing a third option, and don't assume the script enum is the canonical one when editing workflow or template content.
+The same discipline applies to any implicit contract embedded across multiple surfaces — including the spec-status enum, which currently has known active drift between the `draft/active/stale` enum used by scripts, hooks, and shipped skills, and the `draft/ready/in-progress/implemented` enum used by `workflows/README.md`, several spec frontmatters, and the `rule-flow-engine` example. Resolution is tracked in #398; until it's resolved, follow the convention of the surface you're editing rather than introducing a third option, and don't assume the script enum is the canonical one when editing workflow or template content.
 
 ## Testing
 

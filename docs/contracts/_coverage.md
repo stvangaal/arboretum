@@ -11,7 +11,7 @@
 | scripts/check-version-bump.sh | MISSING | — |
 | scripts/ci-checks.sh | MISSING | — |
 | scripts/classify-pr-change.sh | MISSING | — |
-| scripts/generate-coverage.sh | MISSING | — |
+| scripts/generate-coverage.sh | docs/contracts/contract-coverage.contract.md | full |
 | scripts/generate-register.sh | docs/contracts/register-pipeline.contract.md | full |
 | scripts/handoff-commit-wip.sh | MISSING | — |
 | scripts/health-check.sh | docs/contracts/health-check.contract.md | full |
@@ -40,7 +40,7 @@
 | scripts/upgrade-sync.sh | docs/contracts/upgrade-sync.cli-contract.md | cli |
 | scripts/validate-build-exit.sh | MISSING | — |
 | scripts/validate-cli-contract.sh | MISSING | — |
-| scripts/validate-coverage-manifest.sh | MISSING | — |
+| scripts/validate-coverage-manifest.sh | docs/contracts/contract-coverage.contract.md | full |
 | scripts/validate-cross-refs.sh | MISSING | — |
 | scripts/validate-design-spec.sh | MISSING | — |
 | scripts/validate-stage-log-line.sh | MISSING | — |
