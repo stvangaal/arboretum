@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# owner: pipeline-contracts-template
+# Smoke test for docs/contracts/check-version-bump.cli-contract.md.
+# Exercises CLI-1..CLI-6 via fixture git repos driven by REPO_ROOT + BASE_REF.
+# Picked up automatically by ci-checks.sh's === Smoke tests === loop.
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$SCRIPT_DIR/check-version-bump.sh"
+[ -f "$SCRIPT" ] || { echo "FAIL: script not found at $SCRIPT" >&2; exit 1; }
+
+# Identity flags used for every fixture commit — keeps CI runners without a
+# global git config from failing at "Author identity unknown".
+GIT_ID=(-c user.email=t@t -c user.name=t)
+
+# All fixtures live under a single mktemp root; trap cleans them on exit.
+FIXTURE_ROOT=$(mktemp -d)
+trap 'rm -rf "$FIXTURE_ROOT" 2>/dev/null' EXIT
+
+fail=0
+
+# ---------------------------------------------------------------------------
+# Fixture helpers
+# ---------------------------------------------------------------------------
+
+# init_repo <dir> — initialise a bare git repo with an initial empty commit
+# on branch 'base' (the merge-base reference for all scenarios).  Returns with
+# the working tree on branch 'base'.
+init_repo() {
+  local dir="$1"
+  mkdir -p "$dir"
+  git -C "$dir" "${GIT_ID[@]}" init -q
+  git -C "$dir" "${GIT_ID[@]}" checkout -q -b base
+  git -C "$dir" "${GIT_ID[@]}" commit -q --allow-empty -m "init"
+}
+
+# write_plugin_json <dir> <version> — write a self-consistent plugin.json and
+# marketplace.json under <dir>/.claude-plugin/ with the given version string.
+write_plugin_json() {
+  local dir="$1" ver="$2"
+  mkdir -p "$dir/.claude-plugin"
+  printf '{"version":"%s"}' "$ver" > "$dir/.claude-plugin/plugin.json"
+  printf '{"version":"%s","plugins":[{"version":"%s"}]}' "$ver" "$ver" \
+    > "$dir/.claude-plugin/marketplace.json"
+}
+
+# commit_all <dir> <message> — stage everything in <dir> and commit.
+commit_all() {
+  local dir="$1" msg="$2"
+  git -C "$dir" "${GIT_ID[@]}" add -A
+  git -C "$dir" "${GIT_ID[@]}" commit -q -m "$msg"
+}
+
+# run_check <repo_root> <base_ref> — invoke the script with REPO_ROOT and
+# BASE_REF overridden; return the exit code.
+run_check() {
+  local repo_root="$1" base_ref="$2"
+  REPO_ROOT="$repo_root" BASE_REF="$base_ref" bash "$SCRIPT"
+}
+
+# ---------------------------------------------------------------------------
+# Scenario: CLI-1 + CLI-2 — consistent versions, no shippable content changed
+# ---------------------------------------------------------------------------
+#   Build: base commit has version 1.0.0 in both JSON files.  HEAD also has
+#   1.0.0 but only touches a dev-only path (docs/specs/).  Expected: exit 0.
+REPO_A="$FIXTURE_ROOT/repo-a"
+init_repo "$REPO_A"
+write_plugin_json "$REPO_A" "1.0.0"
+commit_all "$REPO_A" "base: add plugin json at 1.0.0"
+
+# Branch off for the "PR" commits.
+git -C "$REPO_A" "${GIT_ID[@]}" checkout -q -b pr-branch
+# Touch only a dev-only file — this must not count as shippable.
+mkdir -p "$REPO_A/docs/specs"
+printf 'spec content\n' > "$REPO_A/docs/specs/example.spec.md"
+commit_all "$REPO_A" "pr: add dev-only spec (no shippable change)"
+
+rc=0
+out=$(REPO_ROOT="$REPO_A" BASE_REF=base bash "$SCRIPT" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "no shippable content changed"; then
+  echo "PASS: CLI-1+CLI-2 — consistent versions, dev-only change → exit 0"
+else
+  echo "FAIL: CLI-1+CLI-2 — expected exit 0 + 'no shippable content changed'; got rc=$rc output: $out" >&2
+  fail=1
+fi
+
+# ---------------------------------------------------------------------------
+# Scenario: CLI-3 — consistent versions, shippable content changed, bump present
+# ---------------------------------------------------------------------------
+#   Build on top of repo-a's base: HEAD has version 1.1.0, touches a
+#   shippable path (skills/finish/SKILL.md).  Expected: exit 0.
+REPO_B="$FIXTURE_ROOT/repo-b"
+init_repo "$REPO_B"
+write_plugin_json "$REPO_B" "1.0.0"
+mkdir -p "$REPO_B/skills/finish"
+printf 'SKILL content\n' > "$REPO_B/skills/finish/SKILL.md"
+commit_all "$REPO_B" "base: add plugin json at 1.0.0 + skill stub"
+
+git -C "$REPO_B" "${GIT_ID[@]}" checkout -q -b pr-branch
+write_plugin_json "$REPO_B" "1.1.0"
+printf 'Updated SKILL content\n' > "$REPO_B/skills/finish/SKILL.md"
+commit_all "$REPO_B" "pr: bump to 1.1.0 and update skill (shippable)"
+
+rc=0
+out=$(REPO_ROOT="$REPO_B" BASE_REF=base bash "$SCRIPT" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "version bumped"; then
+  echo "PASS: CLI-3 — shippable content + bump present → exit 0"
+else
+  echo "FAIL: CLI-3 — expected exit 0 + 'version bumped'; got rc=$rc output: $out" >&2
+  fail=1
+fi
+
+# ---------------------------------------------------------------------------
+# Scenario: CLI-4 — consistent versions, shippable content changed, NO bump
+# ---------------------------------------------------------------------------
+#   Build: base and HEAD share the same version 1.0.0, but HEAD touches a
+#   shippable path.  Expected: exit 1.
+REPO_C="$FIXTURE_ROOT/repo-c"
+init_repo "$REPO_C"
+write_plugin_json "$REPO_C" "1.0.0"
+mkdir -p "$REPO_C/skills/finish"
+printf 'SKILL content\n' > "$REPO_C/skills/finish/SKILL.md"
+commit_all "$REPO_C" "base: add plugin json at 1.0.0 + skill stub"
+
+git -C "$REPO_C" "${GIT_ID[@]}" checkout -q -b pr-branch
+printf 'Updated SKILL content\n' > "$REPO_C/skills/finish/SKILL.md"
+# Version intentionally left at 1.0.0 — no bump.
+commit_all "$REPO_C" "pr: update skill without bumping version"
+
+rc=0
+out=$(REPO_ROOT="$REPO_C" BASE_REF=base bash "$SCRIPT" 2>&1) || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "plugin version was not incremented"; then
+  echo "PASS: CLI-4 — shippable content + no bump → exit 1"
+else
+  echo "FAIL: CLI-4 — expected exit 1 + 'plugin version was not incremented'; got rc=$rc output: $out" >&2
+  fail=1
+fi
+
+# ---------------------------------------------------------------------------
+# Scenario: CLI-1 (version-consistency gate) — three occurrences disagree
+# ---------------------------------------------------------------------------
+#   Build: plugin.json says 1.2.0, marketplace.json says 1.1.0.  The
+#   script must fail before reaching the shippable-content check.
+#   Expected: exit 1.
+REPO_D="$FIXTURE_ROOT/repo-d"
+init_repo "$REPO_D"
+write_plugin_json "$REPO_D" "1.0.0"
+commit_all "$REPO_D" "base: add plugin json at 1.0.0"
+
+git -C "$REPO_D" "${GIT_ID[@]}" checkout -q -b pr-branch
+# Write inconsistent versions directly.
+printf '{"version":"1.2.0"}' > "$REPO_D/.claude-plugin/plugin.json"
+printf '{"version":"1.1.0","plugins":[{"version":"1.1.0"}]}' \
+  > "$REPO_D/.claude-plugin/marketplace.json"
+commit_all "$REPO_D" "pr: inconsistent versions (1.2.0 vs 1.1.0)"
+
+rc=0
+out=$(REPO_ROOT="$REPO_D" BASE_REF=base bash "$SCRIPT" 2>&1) || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "plugin version occurrences disagree"; then
+  echo "PASS: CLI-1 — version inconsistency → exit 1"
+else
+  echo "FAIL: CLI-1 — expected exit 1 + 'plugin version occurrences disagree'; got rc=$rc output: $out" >&2
+  fail=1
+fi
+
+# ---------------------------------------------------------------------------
+# Scenario: CLI-5 + CLI-6 — BASE_REF and REPO_ROOT seams exercised together
+# ---------------------------------------------------------------------------
+#   Reuse repo-b (bump-present fixture). Verify that pointing BASE_REF at
+#   the correct local branch and REPO_ROOT at the fixture directory produces
+#   the same exit-0 result as the CLI-3 scenario — confirming both env
+#   overrides are honoured.  If either seam were ignored, BASE_REF would
+#   fall back to origin/main (unreachable in a bare fixture) or REPO_ROOT
+#   would point at the live repo and fail for unrelated reasons.
+rc=0
+out=$(REPO_ROOT="$REPO_B" BASE_REF=base bash "$SCRIPT" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "PASS: CLI-5+CLI-6 — BASE_REF + REPO_ROOT seams honoured → exit 0"
+else
+  echo "FAIL: CLI-5+CLI-6 — expected exit 0 with both seams set; got rc=$rc output: $out" >&2
+  fail=1
+fi
+
+# ---------------------------------------------------------------------------
+# Final result
+# ---------------------------------------------------------------------------
+if [ "$fail" -ne 0 ]; then
+  echo "SMOKE TEST FAILED" >&2
+  exit 1
+fi
+echo "SMOKE TEST PASSED"
+exit 0
