@@ -18,6 +18,20 @@ fail() {
 }
 ok()   { echo "PASS: $1"; }
 
+HANDOFF_SKILL="$REPO_ROOT/skills/handoff/SKILL.md"
+
+# ── Case 0: /handoff stays tracker-backed and does not force GitHub PR lookup ─
+grep -q 'roadmap_require_backend "$ROADMAP_BACKEND"' "$HANDOFF_SKILL" \
+  || fail "case 0 — /handoff does not guard through the configured tracker backend"
+grep -Fq 'git rev-parse --show-toplevel 2>/dev/null' "$HANDOFF_SKILL" \
+  || fail "case 0 — /handoff does not resolve tracker backend from the active worktree first"
+grep -q 'Do not call `gh pr view` directly from `/handoff`' "$HANDOFF_SKILL" \
+  || fail "case 0 — /handoff still allows direct GitHub PR lookup"
+if grep -q 'Auto-invoked at the end of `/finish`' "$HANDOFF_SKILL"; then
+  fail "case 0 — /handoff still says /finish auto-invokes it pre-merge"
+fi
+ok "case 0 — /handoff is backend-neutral for tracker writes and PR inference"
+
 # A git repo fixture on a feature branch.
 new_repo() {
   local fix="$ROOT_TMP/$1"

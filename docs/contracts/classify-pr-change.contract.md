@@ -1,6 +1,6 @@
 ---
 seam: classify-pr-change
-version: 1.0
+version: 1.2
 producer-type: script
 consumer-type: skill
 consumes:
@@ -15,7 +15,7 @@ owns:
 
 # classify-pr-change — `classify-pr-change.sh` Change-Set Classifier Contract
 
-The seam between `scripts/classify-pr-change.sh` (which classifies a change set as `docs-config` or `code` to drive the tiered merge handoff) and the `/land` skill, which pipes a PR's changed-file list into the script and branches the merge tier on the single-token stdout. This contract pins the closed `{docs-config, code}` output, the path-classification rules, and the safe-default behaviour so `/land` never has to re-implement the docs-vs-code decision.
+The seam between `scripts/classify-pr-change.sh` (which classifies a change set as `docs-config` or `code` to drive the tiered merge handoff) and the `/land` skill, which pipes a provider-specific changed-file list into the script and branches the merge tier on the single-token stdout. This contract pins the closed `{docs-config, code}` output, the path-classification rules, and the safe-default behaviour so `/land` never has to re-implement the docs-vs-code decision.
 
 ## Producer
 
@@ -40,7 +40,7 @@ If no path triggers `code` (including an empty list), the script prints `docs-co
 
 Consumer-type: `skill`. One downstream consumer:
 
-- **`skills/land/SKILL.md`** (~line 177) runs `gh pr diff <N> --name-only | bash scripts/classify-pr-change.sh --files-from -` and branches the merge handoff tier on the `docs-config` vs `code` token.
+- **`skills/land/SKILL.md`** runs a provider-specific changed-file producer and pipes the result into `bash scripts/classify-pr-change.sh --files-from -`. On `github`, the producer is `gh pr diff <N> --name-only`. On `azure-devops`, the producer reads `sourceRefName` and `targetRefName` from the Azure Repos PR metadata, force-refreshes those refs from the repo remote, and diffs the remote source/target branches. It must not classify ADO PRs from local `HEAD`, because `/land <id>` can be run from any checkout. `/land` branches the merge handoff tier on the `docs-config` vs `code` token.
 
 **Consumer obligations:**
 
@@ -81,4 +81,6 @@ Consumer-type: `skill`. One downstream consumer:
 
 ## Versioning
 
+- **1.2** (2026-05-31) — tightens the Azure DevOps `/land` consumer obligation: classify the PR source/target refs, not local `HEAD`. Follow-up from Codex review on #338.
+- **1.1** (2026-05-31) — documents the Azure DevOps `/land` consumer path, which supplies changed files from local git diff instead of `gh pr diff`. Issue #338.
 - **1.0** (2026-05-30) — initial contract. Producer shape as of `scripts/classify-pr-change.sh` on this branch. Issue #303 (WS5 PR 7a).

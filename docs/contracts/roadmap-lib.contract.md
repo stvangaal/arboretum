@@ -1,6 +1,6 @@
 ---
 seam: roadmap-lib
-version: 1.4
+version: 1.5
 producer-type: script
 consumer-type: script
 consumes:
@@ -28,7 +28,7 @@ A side-effect-free-by-default sourceable library (the pulse-*write* helpers muta
 - **`roadmap_config_get KEY`** — echoes a top-level scalar from `roadmap.config.yaml`. Prefers `yq`; falls back to a stdlib-only `python3` parser (no PyYAML). Returns nonzero when the config is absent or the key name is malformed.
 - **`roadmap_config_list KEY`** — echoes a top-level list, one element per line; handles both block (`- item`) and flow (`[a, b, c]`) style.
 - **`roadmap_backend [ROOT]`** — echoes the configured tracker backend. `.arboretum.yml backend:` takes precedence, `roadmap.config.yaml backend:` is accepted for compatibility, and missing/empty defaults to `github`. Normalizes `azure`/`ado`/`azure-devops` to `azure-devops`.
-- **`roadmap_require_backend [BACKEND]`** — validates the selected backend's local prerequisites. `github` requires authenticated `gh`; `azure-devops` requires Azure CLI, the Azure DevOps CLI extension, readable Azure DevOps defaults, and `jq` for JSON normalization.
+- **`roadmap_require_backend [BACKEND]`** — validates the selected backend's local prerequisites. `github` requires authenticated `gh`; `azure-devops` requires Azure CLI, the Azure DevOps CLI extension surfaces used by Arboretum (`az devops`, `az boards`, and `az repos`), readable Azure DevOps defaults, and `jq` for JSON normalization.
 - **`roadmap_tracker_issue_list`, `roadmap_tracker_issue_show`, `roadmap_tracker_issue_comment`, `roadmap_tracker_issue_update`, `roadmap_tracker_issue_close`, `roadmap_tracker_issue_create`, `roadmap_tracker_issue_comments`, `roadmap_tracker_label_list`, `roadmap_tracker_label_create`, `roadmap_tracker_pr_list`** — backend-neutral tracker operations. The `github` adapter delegates to the corresponding `gh` subcommand. The `azure-devops` adapter maps issues/labels to Azure Boards work items/tags and returns the GitHub-shaped JSON fields consumed by existing roadmap scripts.
 - **`roadmap_pulse_path`** — echoes `<root>/.arboretum/roadmap-pulse.json` (echoes nothing if root unknown).
 - **`roadmap_pulse_bootstrap`** — idempotently seeds the pulse file (no-op if present); bootstrap-as-today so no nag fires on install day.
@@ -115,6 +115,7 @@ Consumer-type: `script`. Downstream consumers source the lib and capture functio
 
 ## Versioning
 
+- **1.5** (2026-05-31) — extends the Azure DevOps backend guard to verify the `az repos` surface used by backend-aware PR shipping. Issue #338.
 - **1.4** (2026-05-31) — makes `roadmap_config_list` fall back to python3 when an installed `yq` rejects the list expression.
 - **1.3** (2026-05-31) — implements the Azure DevOps tracker adapter behind the neutral roadmap helper surface.
 - **1.2** (2026-05-31) — extends the helper surface for close, comment-list, and PR-list operations used by maintain, stage-cache, and stage-log scripts.

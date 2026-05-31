@@ -1,7 +1,7 @@
 ---
 name: handoff
 owner: session-handoff
-description: "Queue a tracker item as `next-up` so the next session boots oriented on it. Single canonical writer for the session-handoff label — /finish, /cleanup, and /reflect delegate here. Use directly when leaving mid-session ('I'm wrapping up; #154 is next')."
+description: "Queue a tracker item as `next-up` so the next session boots oriented on it. Single canonical writer for the session-handoff label — /cleanup, /reflect, and explicit completion-mode callers delegate here. Use directly when leaving mid-session ('I'm wrapping up; #154 is next')."
 disable-model-invocation: false
 allowed-tools:
   - Bash
@@ -15,13 +15,18 @@ layer: 0
 
 Captures session-handoff state by applying the **`next-up`** label to a single tracker item. The label is exclusive: the writer ensures at most one open item carries it at any time. The `session-start.sh` hook surfaces whichever item carries `next-up` in the boot banner of every subsequent session.
 
-This skill is the **canonical writer** for the next-up label. The session-end skills (`/finish`, `/cleanup`, `/reflect`) collect the item number and delegate tracker state changes here. They never call vendor-specific tracker CLIs directly.
+This skill is the **canonical writer** for the next-up label. Session-end skills
+that queue follow-up work collect the item number and delegate tracker state
+changes here. They never call vendor-specific tracker CLIs directly. `/finish`
+does not invoke `/handoff` pre-merge; post-merge handoff is owned by
+`/cleanup` / `/reflect`.
 
 ## When to use
 
 - End of a session where you'll come back later (manual: `/handoff 155`).
 - Mid-session, when leaving for the day or stepping away from a long-running task.
-- Auto-invoked at the end of `/finish`, `/cleanup`, and `/reflect`.
+- Auto-invoked at the end of `/cleanup` and `/reflect`, and by any explicit
+  completion-mode caller that needs to queue `next-up`.
 
 ## Procedure
 
@@ -49,7 +54,7 @@ fi
 The mechanism uses the repo's configured tracker backend. Load the roadmap helper library and hard-fail if the selected backend is unavailable:
 
 ```bash
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+PROJECT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${CLAUDE_PROJECT_DIR:-$PWD}")"
 source "$PROJECT_DIR/scripts/roadmap/lib.sh"
 ROADMAP_BACKEND="$(roadmap_backend "$PROJECT_DIR")"
 export ROADMAP_BACKEND
@@ -80,7 +85,7 @@ If the input contains `--dry-run`, set a `DRY_RUN=1` flag; in dry-run mode print
 Detect with:
 
 ```bash
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+PROJECT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${CLAUDE_PROJECT_DIR:-$PWD}")"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 DIRTY=$(git status --porcelain)
 ```
@@ -111,7 +116,7 @@ roadmap_tracker_issue_show "$N" --json number,title,body,state
 Attempt to determine the item the current branch belongs to:
 
 1. Check the design spec matched by the branch topic for a `related-issue:` frontmatter field.
-2. If an open PR exists for the branch and the current backend exposes PR lookup, read its body and extract the item number from a closing-reference pattern. If no such pattern is found, or if PR lookup is unavailable, treat the branch item as undetermined — show no warning.
+2. If an open PR exists for the branch and the current backend exposes PR lookup, read its body and extract the item number from a closing-reference pattern. If no such pattern is found, or if PR lookup is unavailable, treat the branch item as undetermined — show no warning. Do not call `gh pr view` directly from `/handoff`; branch-to-item inference must be backend-aware or skipped.
 
 If a branch item (`M`) is found and it differs from the target (`N`), **warn the human explicitly** (design §4.3, decision #14):
 
@@ -250,8 +255,8 @@ If `DRY_RUN=1`: print the `log-stage.sh` command and the rendered log line, do n
 So the next session boot picks up the change immediately:
 
 ```bash
-# PROJECT_DIR was already set in Step 2b; this line is a no-op if already defined.
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+# Re-resolve from the active worktree in case this step runs independently.
+PROJECT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${CLAUDE_PROJECT_DIR:-$PWD}")"
 bash "$PROJECT_DIR/scripts/refresh-next-cache.sh" "$PROJECT_DIR"
 ```
 
@@ -266,14 +271,14 @@ For example: *"Queued #155 (Session handoff…) as next-up and posted the sessio
 
 ## Important
 
-- **Single canonical writer.** `/finish`, `/cleanup`, and `/reflect` invoke this skill rather than calling tracker CLIs themselves. If you're editing one of those skills and find yourself reaching for a vendor-specific issue command, stop and delegate here.
+- **Single canonical writer.** `/cleanup`, `/reflect`, and explicit completion-mode callers invoke this skill rather than calling tracker CLIs themselves. If you're editing one of those skills and find yourself reaching for a vendor-specific issue command, stop and delegate here.
 - **Advisory, not a gate.** Skip silently on user decline. Never block a parent skill on a missing handoff.
 - **Hard fail on missing prerequisites.** Decision #6 in the design spec still applies: when the configured tracker is unavailable, surface install/auth instructions explicitly. Don't silently degrade.
 - **Exclusivity is enforced by the writer.** Tracker backends do not enforce `next-up` uniqueness; this skill does. Each apply pass strips `next-up` from any other open item.
 - **Not a backlog.** `next-up` is *handoff* — exactly one item. Strategic items go to ROADMAP.md (#152); tactical items remain in the full item list.
 - **Dry-run.** `/handoff 155 --dry-run` prints the tracker calls, the drafted note, the files that would be `wip:`-committed, the commit message, and the push target — and mutates nothing. No commit, no push, no comment, no label, no marker file.
 - **No stash, ever.** The only outcomes for a dirty tree in pause mode are: commit+push (on confirmation) or abort (on decline). A stash is never offered because it is machine-local and cannot survive a machine switch.
-- **Completion mode bypasses the note and tree steps.** When invoked with `--completed` (by `/finish`, `/cleanup`, `/reflect`), or when the tree is clean and the plan has no unchecked boxes, Steps 3b–3d and 5b are skipped entirely. No note is drafted, no tree enforcement runs.
+- **Completion mode bypasses the note and tree steps.** When invoked with `--completed` (by `/cleanup`, `/reflect`, or another explicit completion-mode caller), or when the tree is clean and the plan has no unchecked boxes, Steps 3b–3d and 5b are skipped entirely. No note is drafted, no tree enforcement runs.
 - **Two writes per handoff.** `/handoff` writes both the human-readable handoff comment (Step 5b) AND a machine-parseable `summary` log entry (Step 5c). The two surfaces are intentional: humans read the handoff thread; the boot banner reads the `summary` log entry. Both must succeed for the next session's orientation to be complete.
 
 $ARGUMENTS

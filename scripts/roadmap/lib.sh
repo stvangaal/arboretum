@@ -751,7 +751,7 @@ roadmap_require_backend() {
         echo "/roadmap requires jq for backend=azure-devops JSON normalization. Install jq: https://jqlang.github.io/jq/" >&2
         return 1
       fi
-      if ! az devops -h >/dev/null 2>&1 || ! az boards -h >/dev/null 2>&1; then
+      if ! az devops -h >/dev/null 2>&1 || ! az boards -h >/dev/null 2>&1 || ! az repos -h >/dev/null 2>&1; then
         echo "/roadmap requires the Azure DevOps CLI extension for backend=azure-devops. Run: az extension add --name azure-devops" >&2
         return 1
       fi

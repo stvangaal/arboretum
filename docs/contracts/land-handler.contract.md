@@ -1,6 +1,6 @@
 ---
 seam: land-handler
-version: 1.0
+version: 1.1
 producer-type: script
 consumer-type: skill
 consumes:
@@ -13,9 +13,9 @@ owns:
 ---
 <!-- owner: pipeline-contracts-template -->
 
-# land-handler — `land-handler.sh` /land Phase-Decision Contract
+# land-handler — `land-handler.sh` GitHub /land Phase-Decision Contract
 
-The seam between `scripts/land-handler.sh` (the bash helper backing `/land`'s terminal-state and stall-state phases) and the `/land` skill (`skills/land/SKILL.md`), which captures the handler's stdout and branches its prose on the emitted keys. The handler's stdout is a single line of space-separated `KEY=VALUE` tokens; this contract pins the subcommand interface, the closed key/value vocabulary per subcommand, and the always-exit-0-on-decision guarantee so the skill never re-implements PR-state classification or guesses at an unrecognised token.
+The seam between `scripts/land-handler.sh` (the bash helper backing `/land`'s GitHub terminal-state and stall-state phases) and the `/land` skill (`skills/land/SKILL.md`), which captures the handler's stdout and branches its prose on the emitted keys when `backend: github`. The handler's stdout is a single line of space-separated `KEY=VALUE` tokens; this contract pins the subcommand interface, the closed key/value vocabulary per subcommand, and the always-exit-0-on-decision guarantee so the skill never re-implements GitHub PR-state classification or guesses at an unrecognised token.
 
 ## Producer
 
@@ -34,7 +34,7 @@ It **always exits 0** once it has emitted a decision line — including the `unk
 
 Consumer-type: `skill`. One downstream consumer:
 
-- **`skills/land/SKILL.md`** runs `bash scripts/land-handler.sh check-terminal "$PR"` (Phase 1, ~line 68) and `bash scripts/land-handler.sh check-stall "$PR"` (Phase 2, ~line 83), reads the emitted `KEY=VALUE` tokens, and branches its prose: it keys on `terminal=`/`stall=` (true/false/unknown), `reason=`, and `entry=` to decide whether to surface a message, log a `summary` entry via `log-stage.sh`, and crucially whether to call `ScheduleWakeup`.
+- **`skills/land/SKILL.md`** runs `bash scripts/land-handler.sh check-terminal "$PR"` (GitHub Phase 1) and `bash scripts/land-handler.sh check-stall "$PR"` (GitHub Phase 2) only after backend dispatch selects `github`. It reads the emitted `KEY=VALUE` tokens and branches its prose: it keys on `terminal=`/`stall=` (true/false/unknown), `reason=`, and `entry=` to decide whether to surface a message, log a `summary` entry via `log-stage.sh`, and crucially whether to call `ScheduleWakeup`. When backend dispatch selects `azure-devops`, `/land` bypasses this helper entirely.
 
 **Consumer obligations:**
 
@@ -78,7 +78,9 @@ Consumer-type: `skill`. One downstream consumer:
 - **LH-5:** `check-stall` on a ready PR with green CI and no prior Phase-3 summary → `stall=false next_head_sha_unchanged_count=0 current_head_sha=<sha>`, exit 0.
 - **LH-6:** Invocation errors: no subcommand → exit 1; known subcommand with no `<pr-number>` → exit 1.
 - **LH-7:** `gh` absent from PATH → exit 1 with a `requires the gh CLI` diagnostic.
+- **LH-8:** `/land` prose contains backend dispatch that routes `azure-devops` away from this helper before any `gh` command.
 
 ## Versioning
 
+- **1.1** (2026-05-31) — clarifies that `land-handler.sh` is the GitHub-path helper; `/land` bypasses it for Azure DevOps PR shipping. Issue #338.
 - **1.0** (2026-05-30) — initial contract. Producer shape as of `scripts/land-handler.sh` on this branch. Issue #303 (WS5 PR 7a).

@@ -1,7 +1,7 @@
 ---
 name: land
 owner: git-workflow-tooling
-description: Drive an open pull request to merge-ready — poll CI and AI reviewers, triage and action feedback per thread, loop until CI is green with no substantive comments, then hand off by change tier. Chained from /finish; also runnable standalone on any open PR.
+description: Drive an open pull request to merge-ready through the configured repo backend. GitHub gets the full CI/reviewer loop; Azure DevOps gets explicit PR state/policy checks and merge handoff guidance. Chained from /finish; also runnable standalone on any open PR.
 disable-model-invocation: false
 allowed-tools: Bash, Read, Edit, Grep, Glob, ScheduleWakeup, Skill
 argument-hint: "[<pr-number>]"
@@ -10,8 +10,10 @@ layer: 0
 
 # Land
 
-Drive an open pull request from "just opened" to "merge-ready" — without the
-human prompting each step.
+Drive an open pull request from "just opened" to "merge-ready" through the
+project's configured repo backend. GitHub keeps the autonomous poll/fix/respond
+loop. Azure DevOps uses Azure Repos state and policy checks, then hands off
+unsupported reviewer-thread automation explicitly instead of falling into `gh`.
 
 ## When to use
 
@@ -22,13 +24,18 @@ human prompting each step.
 
 ### Loop handler contract
 
-Every entry into `/land` — cold (`/land <N>` or `/finish` → `/land`) or warm (`ScheduleWakeup` firing a `/loop /land <N>`) — runs three phases in strict order:
+On the `github` backend, every entry into `/land` — cold (`/land <N>` or
+`/finish` → `/land`) or warm (`ScheduleWakeup` firing a `/loop /land <N>`) —
+runs three phases in strict order:
 
 1. **Phase 1: Terminal check** — MERGED, CLOSED, branch deleted on remote, or PR not found. Exits without scheduling a wake-up.
 2. **Phase 2: Stall check** — PR converted to draft, head SHA unchanged for ≥ 2 iterations, or CI in `action_required`. Surfaces guidance and exits without scheduling a wake-up.
 3. **Phase 3: Active iteration** — existing poll → triage → fix → respond → resolve sequence. **This is the only callsite in the entire skill for `ScheduleWakeup`.**
 
 `ScheduleWakeup` is fire-and-forget — once queued, the runtime delivers it regardless of intervening PR state changes. The termination guarantee therefore lives in the handler: Phases 1 and 2 never queue a wake-up, so a wake-up that fires after the PR has merged enters Phase 1, self-extinguishes, and queues nothing further.
+
+On `azure-devops`, `/land` does not use this handler. It follows the Azure
+DevOps path below and exits after state/policy review plus merge handoff.
 
 ### Stage logging
 
@@ -48,7 +55,29 @@ if [ -n "${ISSUE:-}" ]; then
 fi
 ```
 
+### Backend dispatch
+
+Before resolving or polling any PR, read the configured backend:
+
+```bash
+PROJECT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${CLAUDE_PROJECT_DIR:-$PWD}")"
+source "$PROJECT_DIR/scripts/roadmap/lib.sh"
+LAND_BACKEND="${SHIP_BACKEND:-$(roadmap_backend "$PROJECT_DIR")}"
+export LAND_BACKEND
+roadmap_require_backend "$LAND_BACKEND" || exit 1
+```
+
+- **`github`** — run the three-phase handler below. This path owns all `gh`
+  usage in `/land`.
+- **`azure-devops`** — skip the GitHub handler and run Section "Azure DevOps
+  path" below. Do not call `gh pr view`, `gh pr checks`, `gh api`, or
+  `scripts/land-handler.sh`.
+- **Any other backend** — stop with: *"Unsupported PR backend: <backend>.
+  Supported backends: github, azure-devops."*
+
 ### Phase 1: Terminal check
+
+GitHub path only.
 
 If `$ARGUMENTS` gives a number, use it. Otherwise resolve from the current branch:
 
@@ -77,6 +106,8 @@ The helper emits `terminal=true|false` and (when terminal) `reason=merged|closed
 
 ### Phase 2: Stall check
 
+GitHub path only.
+
 Run the stall check:
 
 ```bash
@@ -93,6 +124,8 @@ The helper emits `stall=true|false` and (when stalled) `reason=draft|head-sha-un
 - **`stall=unknown reason=ci-fetch-failed`** — surface *"Couldn't read CI status for #N during stall check — stopping. Re-invoke /land when the checks API is reachable."*, exit. Do **not** call `ScheduleWakeup`. (Termination wins over availability — design spec § Error handling forbids re-queueing against unknown state.)
 
 ### Phase 3: Active iteration
+
+GitHub path only.
 
 Poll two sources, then schedule a wake-up rather than blocking:
 
@@ -173,6 +206,8 @@ Exit the loop when CI is green **and** no substantive comments remain.
 
 ### 7. Tiered merge handoff
 
+GitHub path only.
+
 Classify the change using the PR's actual diff (correct in both chained and standalone mode):
 `gh pr diff <N> --name-only | bash scripts/classify-pr-change.sh --files-from -`
 
@@ -181,10 +216,142 @@ Classify the change using the PR's actual diff (correct in both chained and stan
 - **`code`** -> do not enable auto-merge. Notify the human: the PR is
   merge-ready and awaits their merge.
 
+## Azure DevOps path
+
+This path exists so ADO-backed projects can ship without GitHub commands. It is
+intentionally less autonomous than the GitHub path until Arboretum has an ADO
+review-thread adapter.
+
+### ADO 1. Resolve PR
+
+If `$ARGUMENTS` gives a number, use it as the Azure Repos pull request ID.
+Otherwise resolve the active PR for the current branch:
+
+```bash
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+PR=$(az repos pr list \
+  --source-branch "$BRANCH" \
+  --status active \
+  --query '[0].pullRequestId' \
+  -o tsv)
+```
+
+If no PR is found, stop and tell the user:
+> "No active Azure Repos PR found for <branch>. Create one with `/pr`, or pass the PR id: `/land <id>`."
+
+Fetch state:
+
+```bash
+PR_JSON=$(az repos pr show --id "$PR" --output json)
+```
+
+- `status` is `completed` -> surface "PR <id> is already completed. Nothing to do." and exit.
+- `status` is `abandoned` -> surface "PR <id> is abandoned. Nothing to do." and exit.
+- `isDraft` is true -> surface "PR <id> is still draft. Mark it ready in Azure Repos, then re-run `/land <id>`." and exit.
+
+### ADO 2. Policy and reviewer signal
+
+Read branch policy status:
+
+```bash
+POLICY_JSON="$(az repos pr policy list --id "$PR" --output json)"
+```
+
+If the command is unavailable or fails, degrade explicitly:
+> "Couldn't read Azure Repos policy status for PR <id>. Review the PR in Azure DevOps and re-run `/land <id>` when policies are satisfied."
+
+If any **blocking** policy is queued, running, rejected, or failed, summarize the
+policy names and stop. Ignore optional (`isBlocking == false`) policy failures
+for merge handoff because Azure Repos autocomplete waits on required policies by
+default:
+
+```bash
+BLOCKING_POLICY_FAILURES="$(printf '%s\n' "$POLICY_JSON" | python3 -c '
+import json, sys
+bad = {"queued", "running", "rejected", "failed", "error", "broken"}
+items = json.load(sys.stdin)
+def truthy(value):
+    return value is True or str(value).lower() == "true"
+for item in items:
+    cfg = item.get("configuration") or {}
+    status = str(item.get("status") or item.get("Status") or "").lower()
+    blocking = any(
+        truthy(value)
+        for value in (
+            item.get("isBlocking"),
+            item.get("blocking"),
+            item.get("Blocking"),
+            cfg.get("isBlocking"),
+            cfg.get("blocking"),
+        )
+    )
+    if blocking and status in bad:
+        name = (
+            item.get("displayName")
+            or item.get("name")
+            or ((cfg.get("type") or {}).get("displayName"))
+            or cfg.get("displayName")
+            or cfg.get("name")
+            or "<unnamed policy>"
+        )
+        print(f"{name}: {status}")
+')"
+```
+
+If `$BLOCKING_POLICY_FAILURES` is non-empty, summarize it and stop. Do not
+schedule a wake-up unless the parent invocation is explicitly `/loop /land <id>`
+and the user has asked for polling.
+
+Reviewer-thread triage is not yet automated for Azure DevOps. Surface this
+clearly:
+> "Azure reviewer-thread automation is not implemented yet. Review any ADO comments in the PR UI; I can continue after you re-run `/land <id>`."
+
+Stop here unless the user has explicitly confirmed in the current conversation
+that all ADO reviewer comments have been reviewed/resolved and that `/land`
+should continue to the merge handoff. Without that confirmation, do not run ADO
+3 and do not queue autocomplete.
+
+### ADO 3. Tiered merge handoff
+
+Classify the Azure Repos PR's actual source/target diff, not the current local
+checkout. Use the PR metadata fetched in ADO 1:
+
+```bash
+SOURCE_REF="$(printf '%s\n' "$PR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("sourceRefName",""))')"
+TARGET_REF="$(printf '%s\n' "$PR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("targetRefName",""))')"
+SOURCE_BRANCH="${SOURCE_REF#refs/heads/}"
+TARGET_BRANCH="${TARGET_REF#refs/heads/}"
+REMOTE="${REMOTE:-origin}"
+git fetch "$REMOTE" \
+  "+refs/heads/$TARGET_BRANCH:refs/remotes/$REMOTE/$TARGET_BRANCH" \
+  "+refs/heads/$SOURCE_BRANCH:refs/remotes/$REMOTE/$SOURCE_BRANCH"
+git diff "$REMOTE/$TARGET_BRANCH...$REMOTE/$SOURCE_BRANCH" --name-only \
+  | bash scripts/classify-pr-change.sh --files-from -
+```
+
+If PR refs are unavailable, a fetch fails, or the source repository is not the
+current repo, stop and surface a portal handoff. Do not use `HEAD` as a fallback
+for ADO classification.
+
+- **`docs-config`** -> offer Azure Repos autocomplete rather than merging
+  directly:
+
+  ```bash
+  az repos pr update --id "$PR" --auto-complete true --squash true --delete-source-branch true
+  ```
+
+  If the CLI rejects an autocomplete flag for the user's Azure DevOps extension
+  version, surface the portal handoff instead of inventing a fallback merge.
+- **`code`** -> do not autocomplete. Notify the human that the PR is
+  merge-ready once ADO policies are satisfied and awaits their merge.
+
 ## Important
 
 - `/land` never merges directly — `docs-config` delegates to GitHub auto-merge;
+  on Azure DevOps, `docs-config` may delegate to Azure Repos autocomplete;
   `code` hands off to the human.
 - The two caps (2 fix rounds in Phase 3 Step 4, head-SHA-unchanged ≥ 2 in Phase 2) guarantee termination. No wake-up is queued from Phase 1 or Phase 2.
-- Graceful degradation: no `gh` -> stop with install guidance; no CI configured
-  -> skip the CI signal, still poll reviewers.
+- Graceful degradation: missing provider CLI/auth -> stop with the selected
+  backend's prerequisite diagnostic; no CI configured on GitHub -> skip the CI
+  signal, still poll reviewers; unavailable ADO policy status -> hand off to the
+  user with the PR id and re-run instruction.

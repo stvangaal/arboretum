@@ -27,7 +27,8 @@ Reads `roadmap.config.yaml` from the current working directory and prints the ac
 
 Consumer-type: `skill`. Multiple pipeline-stage skills capture the stdout token via command substitution to decide v1-vs-v2 behaviour without re-reading the config:
 
-- `skills/design/SKILL.md`, `skills/consolidate/SKILL.md`, `skills/start/SKILL.md`, `skills/finish/SKILL.md`, `skills/health-check/SKILL.md` — each runs `PIPELINE=$(bash scripts/read-pipeline-flag.sh)` and branches.
+- `skills/design/SKILL.md`, `skills/consolidate/SKILL.md`, `skills/start/SKILL.md`, `skills/health-check/SKILL.md` — each runs `PIPELINE=$(bash scripts/read-pipeline-flag.sh)` and branches.
+- `skills/finish/SKILL.md` — resolves the active worktree root first, then runs `PIPELINE="$(cd "$PROJECT_DIR" && bash "$PROJECT_DIR/scripts/read-pipeline-flag.sh")"` so `/finish` works when invoked from a subdirectory before the backend-aware ship tail starts.
 - `scripts/_smoke-test-contract-tests.sh` (test consumer) gates contract-test execution on the value.
 
 **Consumer obligations:**

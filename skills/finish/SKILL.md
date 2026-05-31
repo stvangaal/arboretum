@@ -19,12 +19,27 @@ Guides the transition from "code is done" to "PR is created." Orchestrates verif
 
 ## Procedure
 
-### Step 0: Read the pipeline.workflow flag
+### Step 0: Read the pipeline.workflow flag from the project root
 
-Before any other step, read the active pipeline version:
+Before any other step, resolve the active worktree root:
 
 ```bash
-PIPELINE=$(bash scripts/read-pipeline-flag.sh)
+PROJECT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${CLAUDE_PROJECT_DIR:-$PWD}")"
+```
+
+Then read the active pipeline version from that root:
+
+```bash
+PIPELINE="$(cd "$PROJECT_DIR" && bash "$PROJECT_DIR/scripts/read-pipeline-flag.sh")"
+```
+
+Also read the configured repo backend from the same root so the ship tail can use
+the correct PR provider:
+
+```bash
+source "$PROJECT_DIR/scripts/roadmap/lib.sh"
+SHIP_BACKEND="$(roadmap_backend "$PROJECT_DIR")"
+export SHIP_BACKEND
 ```
 
 - **`v1` (default)** — continue with Steps 1–7 below as written.
@@ -153,19 +168,22 @@ green from its first push.
 
 ### Step 6: Create PR
 
-Invoke the `/pr` skill to create the pull request. It handles:
+Invoke the `/pr` skill to create the pull request through `$SHIP_BACKEND`. It handles:
 - Health check summary
 - Spec context
 - Pushing the branch
-- Creating the PR via `gh pr create`
+- Creating the PR via `gh pr create` for `github`
+- Creating the PR via `az repos pr create` for `azure-devops`
 
 Present the PR URL when done.
 
 ### Step 6.3: Hand off to `/land`
 
 After the PR is created, invoke `/land <pr-number>` to drive it to merge-ready
-(poll CI + reviewers, triage and action feedback, tiered merge handoff). `/land`
-runs its own asynchronous loop; `/finish` does not block on it.
+through the same backend. For `github`, `/land` runs the existing CI/reviewer
+poll loop. For `azure-devops`, `/land` uses Azure Repos state and policy checks
+and hands off any unsupported reviewer-thread automation explicitly. `/land`
+runs its own asynchronous loop where supported; `/finish` does not block on it.
 
 ### Step 7: Suggest next steps
 
@@ -184,7 +202,7 @@ fi
 
 ## Section v2: Ship-tail under the unified workflow (when `PIPELINE=v2`)
 
-Under v2 (`pipeline.workflow: v2` in `roadmap.config.yaml`), the procedure above is **unchanged** — `/finish` never branched on Path A vs Path B in v1, so there is no Path A/B prose to suppress. The v2 ship tail is the same sequence: verify → identify affected specs → health-check → `/consolidate` → `/security-review` → `ci-checks` → `/pr` → `/land`.
+Under v2 (`pipeline.workflow: v2` in `roadmap.config.yaml`), the procedure above is **unchanged** — `/finish` never branched on Path A vs Path B in v1, so there is no Path A/B prose to suppress. The v2 ship tail is the same sequence: verify → identify affected specs → health-check → `/consolidate` → `/security-review` → `ci-checks` → backend-aware `/pr` → backend-aware `/land`.
 
 The model-level differences that v2 introduces (governed specs are written **only** by `/consolidate` per WS2 D3; the everything-else pre-build **always** produces an ephemeral design spec per D4) are upstream of `/finish` — they change what `/consolidate` does in Step 4, not what `/finish` orchestrates. Under v2:
 

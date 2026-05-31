@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # owner: pipeline-contracts-template
 # _smoke-test-contract-land-handler.sh — Contract test for
-# docs/contracts/land-handler.contract.md. Asserts LH-1..LH-7 against
+# docs/contracts/land-handler.contract.md. Asserts LH-1..LH-8 against
 # scripts/land-handler.sh.
 #
 # land-handler.sh shells out to `gh` (repo view, pr view, pr checks,
@@ -21,7 +21,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROBE="$SCRIPT_DIR/land-handler.sh"
+LAND_SKILL="$SCRIPT_DIR/../skills/land/SKILL.md"
 [ -f "$PROBE" ] || { echo "FAIL: $PROBE not found" >&2; exit 1; }
+[ -f "$LAND_SKILL" ] || { echo "FAIL: $LAND_SKILL not found" >&2; exit 1; }
 
 GH_STUB_DIR=$(mktemp -d)
 trap 'rm -rf "$GH_STUB_DIR" "${NOGH_BIN:-}"' EXIT
@@ -105,5 +107,15 @@ for t in python3 mktemp date cat rm bash sed grep awk dirname cd; do
 done
 out=$(PATH="$NOGH_BIN" bash "$PROBE" check-terminal 42 2>/dev/null); rc=$?
 [ "$rc" = 1 ] && pass LH-7 || fail_case LH-7 "rc=$rc out=$out"
+
+# LH-8 — /land routes Azure DevOps away from this GitHub-only helper.
+if grep -q 'LAND_BACKEND' "$LAND_SKILL" \
+   && grep -q 'azure-devops' "$LAND_SKILL" \
+   && grep -q 'Do not call `gh pr view`' "$LAND_SKILL" \
+   && grep -q 'skip the GitHub handler' "$LAND_SKILL"; then
+  pass LH-8
+else
+  fail_case LH-8 "skills/land/SKILL.md no longer documents the Azure DevOps bypass of land-handler.sh"
+fi
 
 [ "$fail" = 0 ] && echo "land-handler contract: ALL PASS" || exit 1

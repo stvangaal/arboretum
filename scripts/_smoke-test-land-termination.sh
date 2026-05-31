@@ -25,6 +25,58 @@ export FETCH_RETRY_SLEEP=0
 fail() { echo "FAIL: $1" >&2; [ -n "${2:-}" ] && printf '%s\n' "$2" >&2; exit 1; }
 ok()   { echo "PASS: $1"; }
 
+PR_SKILL="$REPO_ROOT/skills/pr/SKILL.md"
+FINISH_SKILL="$REPO_ROOT/skills/finish/SKILL.md"
+LAND_SKILL="$REPO_ROOT/skills/land/SKILL.md"
+
+# ── Case 0: Shipping skills dispatch on backend before provider calls ─
+grep -q 'SHIP_BACKEND="$(roadmap_backend "$PROJECT_DIR")"' "$PR_SKILL" \
+  || fail "case 0a — /pr does not read the configured backend"
+grep -Fq 'git rev-parse --show-toplevel 2>/dev/null' "$PR_SKILL" \
+  || fail "case 0a — /pr does not resolve backend from the active worktree first"
+grep -q 'az repos pr create' "$PR_SKILL" \
+  || fail "case 0a — /pr does not document Azure Repos PR creation"
+grep -Fq '_links.web.href' "$PR_SKILL" \
+  || fail "case 0a — /pr does not prefer Azure Repos web links over REST URLs"
+grep -q 'roadmap_ado_organization' "$PR_SKILL" \
+  || fail "case 0a — /pr fallback URL does not use active ADO organization config"
+grep -q 'repository",{}).get("project",{}).get("name"' "$PR_SKILL" \
+  || fail "case 0a — /pr fallback URL does not use PR project metadata"
+ok "case 0a — /pr has GitHub/Azure backend dispatch"
+
+grep -q 'SHIP_BACKEND="$(roadmap_backend "$PROJECT_DIR")"' "$FINISH_SKILL" \
+  || fail "case 0b — /finish does not read the configured backend"
+grep -Fq 'git rev-parse --show-toplevel 2>/dev/null' "$FINISH_SKILL" \
+  || fail "case 0b — /finish does not resolve backend from the active worktree first"
+grep -Fq 'PIPELINE="$(cd "$PROJECT_DIR" && bash "$PROJECT_DIR/scripts/read-pipeline-flag.sh")"' "$FINISH_SKILL" \
+  || fail "case 0b — /finish does not read the pipeline flag from the resolved project root"
+grep -q 'backend-aware `/pr`' "$FINISH_SKILL" \
+  || fail "case 0b — /finish ship tail does not name backend-aware /pr"
+ok "case 0b — /finish carries backend-aware ship tail"
+
+grep -q 'LAND_BACKEND="${SHIP_BACKEND:-$(roadmap_backend "$PROJECT_DIR")}"' "$LAND_SKILL" \
+  || fail "case 0c — /land does not read the configured backend"
+grep -Fq 'git rev-parse --show-toplevel 2>/dev/null' "$LAND_SKILL" \
+  || fail "case 0c — /land does not resolve backend from the active worktree first"
+grep -q 'Do not call `gh pr view`' "$LAND_SKILL" \
+  || fail "case 0c — /land does not guard Azure DevOps from GitHub PR commands"
+grep -q 'az repos pr policy list' "$LAND_SKILL" \
+  || fail "case 0c — /land does not document Azure policy checks"
+grep -q 'BLOCKING_POLICY_FAILURES' "$LAND_SKILL" \
+  || fail "case 0c — /land does not filter ADO policy failures to blocking policies"
+grep -q 'Stop here unless the user has explicitly confirmed' "$LAND_SKILL" \
+  || fail "case 0c — /land does not gate ADO merge handoff on human reviewer-thread confirmation"
+grep -q 'sourceRefName' "$LAND_SKILL" \
+  || fail "case 0c — /land does not classify the actual Azure Repos source ref"
+grep -q 'targetRefName' "$LAND_SKILL" \
+  || fail "case 0c — /land does not classify the actual Azure Repos target ref"
+grep -Fq '+refs/heads/$SOURCE_BRANCH:refs/remotes/$REMOTE/$SOURCE_BRANCH' "$LAND_SKILL" \
+  || fail "case 0c — /land does not force-refresh ADO source refs before classification"
+if grep -q 'git diff "$BASE"...HEAD' "$LAND_SKILL"; then
+  fail "case 0c — /land still classifies ADO PRs from local HEAD"
+fi
+ok "case 0c — /land routes Azure DevOps away from GitHub handler"
+
 # A gh stub that takes its responses from env vars. The stub uses jq
 # output for "repo view --json nameWithOwner --jq .nameWithOwner" which
 # the caller invokes to resolve the repo owner/name. Branches API and

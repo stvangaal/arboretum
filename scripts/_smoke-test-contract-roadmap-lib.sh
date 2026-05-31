@@ -193,7 +193,7 @@ AZ_BIN="$FIX/.az-bin"; mkdir -p "$AZ_BIN"
 cat > "$AZ_BIN/az" <<'AZ'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${AZ_STUB_LOG:?}"
-if [ "$1 $2" = "devops -h" ] || [ "$1 $2" = "boards -h" ]; then
+if [ "$1 $2" = "devops -h" ] || [ "$1 $2" = "boards -h" ] || [ "$1 $2" = "repos -h" ]; then
   exit 0
 fi
 if [ "$1 $2 $3" = "devops configure --list" ]; then

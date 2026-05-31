@@ -1,16 +1,18 @@
 ---
 name: pr
 owner: git-workflow-tooling
-description: Create a pull request with spec-aware body, health-check summary, and security review suggestion. Use when ready to open a PR for the current branch.
+description: Create a pull request with spec-aware body, health-check summary, and security review suggestion through the configured repo backend. Use when ready to open a PR for the current branch.
 disable-model-invocation: false
 allowed-tools: Bash, Read, Grep, Glob, AskUserQuestion
-argument-hint: [--draft] [--reviewer <user>] [gh pr create options...]
+argument-hint: [--draft] [--reviewer <user>] [provider PR options...]
 layer: 0
 ---
 
 # Create Pull Request
 
-Create a spec-aware pull request for the current feature branch.
+Create a spec-aware pull request for the current feature branch using the
+project's configured repo backend. `github` preserves the existing `gh` path;
+`azure-devops` uses Azure Repos through the Azure CLI.
 
 ## Procedure
 
@@ -32,6 +34,31 @@ if [ -n "${ISSUE:-}" ]; then
 fi
 ```
 
+
+### 0. Select repo backend
+
+Read the configured backend before any PR-provider work:
+
+```bash
+PROJECT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "${CLAUDE_PROJECT_DIR:-$PWD}")"
+source "$PROJECT_DIR/scripts/roadmap/lib.sh"
+SHIP_BACKEND="$(roadmap_backend "$PROJECT_DIR")"
+export SHIP_BACKEND
+```
+
+Supported repo backends:
+
+- `github` - create the PR with `gh pr create`.
+- `azure-devops` - create the PR with `az repos pr create`.
+
+For any other value, stop and tell the user:
+> "Unsupported PR backend: <backend>. Supported backends: github, azure-devops."
+
+Run the matching prerequisite guard before creating the PR:
+
+```bash
+roadmap_require_backend "$SHIP_BACKEND" || exit 1
+```
 
 ### 1. Check branch
 
@@ -139,12 +166,77 @@ Draft the PR title and body:
 <bulleted checklist of how to verify the changes>
 ```
 
-Create the PR:
+Create the PR through the selected backend.
+
+For `github`:
+
 ```bash
 gh pr create --title "<title>" --body "<body>" $EXTRA_ARGS
 ```
 
-Where `$EXTRA_ARGS` are any arguments passed via `$ARGUMENTS` (e.g., `--draft`, `--reviewer octocat`).
+Where `$EXTRA_ARGS` are any arguments passed via `$ARGUMENTS` (for example
+`--draft`, `--reviewer octocat`, or another `gh pr create` option).
+
+For `azure-devops`, map the common Arboretum arguments before passing through
+provider-specific options:
+
+- `--draft` -> `--draft true`
+- `--reviewer <user>` -> `--reviewers <user>`
+- `$ISSUE` set -> `--work-items "$ISSUE"` so the PR links to the active work item
+
+Then create the PR:
+
+```bash
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+AZ_ARGS=(
+  repos pr create
+  --source-branch "$BRANCH"
+  --target-branch "$BASE"
+  --title "<title>"
+  --description "<body>"
+  --output json
+)
+[ -n "${ISSUE:-}" ] && AZ_ARGS+=(--work-items "$ISSUE")
+PR_JSON="$(az "${AZ_ARGS[@]}" ${AZURE_EXTRA_ARGS:-})"
+PR_ID="$(printf '%s\n' "$PR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("pullRequestId",""))')"
+```
+
+Use `roadmap_ado_organization` / `roadmap_ado_project` from the sourced helper
+library when constructing fallback URLs so the link matches Arboretum's active
+ADO context, even when Azure CLI used repo auto-detection or git config rather
+than global defaults. Present a browser URL, not the Azure Repos REST/API `url`
+field. Prefer the web link Azure returns in `_links.web.href`; if the create
+response does not include links, query the PR with `--include-links` before
+falling back to a constructed portal URL from helper values and PR metadata:
+
+```bash
+PR_WEB_URL="$(printf '%s\n' "$PR_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("_links",{}).get("web",{}).get("href",""))' 2>/dev/null)"
+if [ -z "$PR_WEB_URL" ]; then
+  PR_WEB_URL="$(az repos pr list --status all --include-links \
+    --query "[?pullRequestId==\`$PR_ID\`]._links.web.href | [0]" -o tsv)"
+fi
+if [ -z "$PR_WEB_URL" ]; then
+  ORG_URL="$(roadmap_ado_organization 2>/dev/null || true)"
+  PROJECT="$(roadmap_ado_project 2>/dev/null || true)"
+  REPO_NAME="$(printf '%s\n' "$PR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("repository",{}).get("name",""))')"
+  PROJECT="${PROJECT:-$(printf '%s\n' "$PR_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("repository",{}).get("project",{}).get("name",""))')}"
+  ORG_URL="${ORG_URL:-$(printf '%s\n' "$PR_JSON" | python3 -c 'import json,sys,re; d=json.load(sys.stdin); u=d.get("repository",{}).get("project",{}).get("url",""); m=re.match(r"(https://dev\.azure\.com/[^/]+)", u); print(m.group(1) if m else "")')}"
+  if [ -n "$ORG_URL" ] && [ -n "$PROJECT" ] && [ -n "$REPO_NAME" ] && [ -n "$PR_ID" ]; then
+    PR_WEB_URL="$(python3 - "$ORG_URL" "$PROJECT" "$REPO_NAME" "$PR_ID" <<'PY'
+from urllib.parse import quote
+import sys
+org, project, repo, pr = sys.argv[1:5]
+print(f"{org.rstrip('/')}/{quote(project, safe='')}/_git/{quote(repo, safe='')}/pullrequest/{quote(pr, safe='')}")
+PY
+)"
+  fi
+fi
+if [ -z "$PR_WEB_URL" ]; then
+  echo "Azure Repos PR $PR_ID was created, but I couldn't derive a browser URL from the active ADO context. Open it from Azure Repos."
+  exit 0
+fi
+printf '%s\n' "$PR_WEB_URL"
+```
 
 Present the PR URL to the user.
 
@@ -152,7 +244,10 @@ Present the PR URL to the user.
 
 - **No `REGISTER.md`:** Skip the Specs section in the PR body
 - **No `health-check.sh`:** Show "N/A — no health-check script found" in Health Check section
-- **No `gh` CLI:** Error with: "The `gh` CLI is required. Install it: https://cli.github.com/"
+- **Backend prerequisites unavailable:** Surface `roadmap_require_backend`'s diagnostic
+  for the selected backend. For `github`, this is the `gh` install/auth path. For
+  `azure-devops`, this is the Azure CLI / Azure DevOps extension / configured
+  defaults path.
 - **No remote:** Error with: "No remote configured. Add one with `git remote add origin <url>`"
 - **Early-phase project:** All governance features degrade gracefully — PR creation always works
 
