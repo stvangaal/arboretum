@@ -8,7 +8,7 @@
       "name": "arboretum",
       "source": {
         "source": "local",
-        "path": "./plugins/arboretum"
+        "path": "."
       },
       "policy": {
         "installation": "AVAILABLE",
